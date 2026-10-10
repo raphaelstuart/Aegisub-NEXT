@@ -45,7 +45,10 @@ public static partial class ProjectEditingOperations
         var lineIndex = SubtitleIndex(document, subtitleId);
         var line = document.Subtitles[lineIndex];
         var index = AnimationRangeIndex(line, rangeId);
-        return WithSubtitleContent(document, lineIndex, line with { AnimationRanges = line.AnimationRanges.RemoveAt(index) });
+        return WithSubtitleContent(document, lineIndex, line with
+        {
+            AnimationRanges = SubtitleAnimationRangeEditing.PruneOrphanedOrigins(line.AnimationRanges.RemoveAt(index))
+        });
     }
 
     /// <summary>修改文本动画范围覆盖顺序，保留范围身份、静态变换和轨道。</summary>

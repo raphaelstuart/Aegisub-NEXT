@@ -54,7 +54,7 @@ public static partial class ProjectEditingOperations
         var layerIndex = document.Layers.IndexOf(layer);
         var layers = document.Layers
             .SetItem(layerIndex, LayerAnimationTiming.Clip(SubtitleAnimationRangeEditing.PruneTargets(layer, left) with { End = playhead }))
-            .Insert(layerIndex + 1, LayerAnimationTiming.Clip(layer with
+            .Insert(layerIndex + 1, LayerAnimationTiming.Clip(SubtitleAnimationRangeEditing.PruneTargets(layer with
             {
                 Id = right.Id, SubtitleId = right.Id, Start = playhead,
                 AnimationOffset = contentTime,
@@ -64,7 +64,7 @@ public static partial class ProjectEditingOperations
                         Target = track.Target.TextRangeId is { } id ? track.Target with { TextRangeId = rightRangeIds[id] } : track.Target,
                         Transforms = track.Transforms.Select(operation => operation with { Id = Guid.NewGuid() }).ToImmutableArray()
                     }).ToImmutableArray()
-            }));
+            }, right)));
         return Verified(document with
         {
             Subtitles = document.Subtitles.SetItem(index, left)
@@ -115,6 +115,7 @@ public static partial class ProjectEditingOperations
         var preserveHighlight = firstHasKaraoke && secondHasKaraoke && !compatibleKaraokeStyles;
         var mergedKaraokeStyle = preserveHighlight ? null : firstHasKaraoke ? first.KaraokeStyle : second.KaraokeStyle;
         var secondTextOffset = checked(first.Text.Length + separator.Length);
+        var secondRangeIds = second.AnimationRanges.ToDictionary(range => range.Id, _ => Guid.NewGuid());
         var firstKaraoke = RebaseKaraoke(first, first.Karaoke, firstLayer, mergedOrigin, 0);
         var firstInactiveKaraoke = RebaseKaraoke(first, first.InactiveKaraoke, firstLayer, mergedOrigin, 0);
         var secondKaraoke = RebaseKaraoke(second, second.Karaoke, secondLayer, mergedOrigin, secondTextOffset);
@@ -127,10 +128,8 @@ public static partial class ProjectEditingOperations
             End = second.End,
             Text = first.Text + separator + second.Text,
             InlineSpans = SubtitleContentSplitMerge.MergeSpans(first, second, checked(first.Text.Length + separator.Length)),
-            AnimationRanges = first.AnimationRanges.AddRange(second.AnimationRanges.Select(range => range with
-            {
-                Id = Guid.NewGuid(), Utf16Start = checked(range.Utf16Start + secondTextOffset)
-            })),
+            AnimationRanges = first.AnimationRanges.AddRange(SubtitleAnimationRangeEditing.Clone(
+                second.AnimationRanges, secondRangeIds, secondTextOffset)),
             Karaoke = firstKaraoke.AddRange(secondKaraoke),
             InactiveKaraoke = firstInactiveKaraoke.AddRange(secondInactiveKaraoke),
             KaraokeStyleSpans = SubtitleContentSplitMerge.MergeKaraokeStyleSpans(first, second, secondTextOffset, mergedKaraokeStyle),

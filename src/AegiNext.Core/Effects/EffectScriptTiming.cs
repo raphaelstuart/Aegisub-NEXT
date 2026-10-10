@@ -5,6 +5,15 @@ namespace AegiNext.Core.Effects;
 
 internal static class EffectScriptTiming
 {
+    internal static BigInteger ExactFloor(MediaTime length, MediaTime period)
+    {
+        if (length < MediaTime.Zero || period <= MediaTime.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(period));
+        }
+        return (BigInteger)length.Numerator * period.Denominator / ((BigInteger)length.Denominator * period.Numerator);
+    }
+
     internal static MediaTime Scale(MediaTime time, decimal factor)
     {
         var bits = decimal.GetBits(factor);

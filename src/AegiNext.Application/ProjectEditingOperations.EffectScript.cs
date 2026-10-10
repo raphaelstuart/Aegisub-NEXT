@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using AegiNext.Core.Effects;
 using AegiNext.Core.Projects;
 
@@ -5,7 +6,7 @@ namespace AegiNext.Application;
 
 public static partial class ProjectEditingOperations
 {
-    /// <summary>在冻结快照上编译并组合目标片段的脚本轨道；取消或任一目标失败不发布部分结果。</summary>
+    /// <summary>在冻结快照上编译并组合目标片段的范围及轨道；取消或任一目标失败不发布部分结果。</summary>
     public static ProjectDocument ApplyEffectScript(ProjectDocument document, IReadOnlyCollection<Guid> layerIds,
         EffectScript script, CancellationToken cancellationToken = default)
     {
@@ -45,6 +46,7 @@ public static partial class ProjectEditingOperations
             return document;
         }
         var subtitles = document.Subtitles.ToDictionary(line => line.Id);
+        var subtitlesChanged = false;
         var layers = MapTrackLayers(document.Layers, layer =>
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -53,14 +55,26 @@ public static partial class ProjectEditingOperations
                 return layer;
             }
             var subtitle = layer.SubtitleId is { } id ? subtitles[id] : null;
-            var tracks = EffectScriptComposer.Compose(script, layer, subtitle?.Style, targetContext, subtitle);
-            return tracks == layer.Tracks ? layer : layer with { Tracks = tracks };
+            var compilation = EffectScriptComposer.ComposeTarget(script, layer, subtitle?.Style, targetContext, subtitle);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (compilation.Subtitle is { } updated && updated != subtitle)
+            {
+                subtitles[updated.Id] = updated;
+                subtitlesChanged = true;
+            }
+            var prepared = compilation.PreparedLayer ?? layer;
+            return compilation.Tracks == prepared.Tracks ? prepared : prepared with { Tracks = compilation.Tracks };
         });
         if (remaining.Count > 0)
         {
             throw new KeyNotFoundException("图层不存在。");
         }
-        var result = layers == document.Layers ? document : document with { Layers = layers };
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = layers == document.Layers && !subtitlesChanged ? document : document with
+        {
+            Layers = layers,
+            Subtitles = subtitlesChanged ? document.Subtitles.Select(line => subtitles[line.Id]).ToImmutableArray() : document.Subtitles
+        };
         ProjectValidator.Validate(result);
         return result;
     }

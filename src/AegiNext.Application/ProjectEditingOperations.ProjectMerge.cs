@@ -115,7 +115,7 @@ public static partial class ProjectEditingOperations
                 subtitles.Add(line with
                 {
                     Id = id,
-                    AnimationRanges = line.AnimationRanges.Select(range => range with { Id = rangeIds[line.Id][range.Id] }).ToImmutableArray(),
+                    AnimationRanges = SubtitleAnimationRangeEditing.Clone(line.AnimationRanges, rangeIds[line.Id]),
                     ColorTagId = line.ColorTagId is { } tagId ? colorTagIds[tagId] : null,
                     Style = RemapMergeStyle(line.Style, assetIds),
                     InlineSpans = line.InlineSpans.Select(span => span with

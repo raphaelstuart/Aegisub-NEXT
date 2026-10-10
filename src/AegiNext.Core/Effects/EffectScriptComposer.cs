@@ -13,6 +13,22 @@ public static class EffectScriptComposer
         AnimationTrackTarget? targetContext = null, SubtitleLine? subtitle = null)
     {
         var compilation = EffectScriptCompiler.CompileWithCoverage(script, target, subtitleStyle, true, targetContext, subtitle);
+        return ComposeCompilation(compilation, target);
+    }
+
+    /// <summary>组合完整目标结果，保留未声明的既有动画并同步返回生成后的字幕范围。</summary>
+    public static EffectScriptCompilation ComposeTarget(EffectScript script, ProjectLayer target, SubtitleStyle? subtitleStyle = null,
+        AnimationTrackTarget? targetContext = null, SubtitleLine? subtitle = null)
+    {
+        var compilation = EffectScriptCompiler.CompileTarget(script, target, subtitleStyle, true, targetContext, subtitle);
+        var prepared = compilation.PreparedLayer ?? target;
+        var tracks = ComposeCompilation(compilation, prepared);
+        EffectScriptCompiler.ValidateScopedTrackBudget(tracks);
+        return compilation with { Tracks = tracks, PreparedLayer = prepared };
+    }
+
+    internal static ImmutableArray<AnimationTrack> ComposeCompilation(EffectScriptCompilation compilation, ProjectLayer target)
+    {
         try
         {
             var (minimum, maximum) = LayerAnimationTiming.GetRange(target);

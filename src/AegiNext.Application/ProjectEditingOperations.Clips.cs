@@ -83,7 +83,7 @@ public static partial class ProjectEditingOperations
         {
             Id = subtitleIds[line.Id], Start = line.Start + offset, End = line.End + offset,
             ColorTagId = line.ColorTagId is { } tagId ? colorTagIds[tagId] : null,
-            AnimationRanges = line.AnimationRanges.Select(range => range with { Id = rangeIds[line.Id][range.Id] }).ToImmutableArray(),
+            AnimationRanges = SubtitleAnimationRangeEditing.Clone(line.AnimationRanges, rangeIds[line.Id]),
             Karaoke = line.Karaoke.Select(clip => clip with { Id = Guid.NewGuid() }).ToImmutableArray(),
             InactiveKaraoke = line.InactiveKaraoke.Select(clip => clip with { Id = Guid.NewGuid() }).ToImmutableArray()
         }).ToImmutableArray();

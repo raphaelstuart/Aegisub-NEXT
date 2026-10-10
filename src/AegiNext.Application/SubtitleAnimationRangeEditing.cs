@@ -33,7 +33,7 @@ internal static class SubtitleAnimationRangeEditing
             }
         }
 
-        var remapped = result.ToImmutable();
+        var remapped = PruneOrphanedOrigins(result.ToImmutable());
         return remapped.SequenceEqual(ranges) ? ranges : remapped;
     }
 
@@ -61,13 +61,49 @@ internal static class SubtitleAnimationRangeEditing
                 result.Add(range with
                 {
                     Id = right ? rangeIds![range.Id] : range.Id,
+                    GeneratedOrigin = right ? RemapOrigin(range.GeneratedOrigin, rangeIds!) : range.GeneratedOrigin,
                     Utf16Start = right ? first - offset : first,
                     Utf16Length = end - first
                 });
             }
         }
 
-        return result.ToImmutable();
+        return PruneOrphanedOrigins(result.ToImmutable());
+    }
+
+    internal static ImmutableArray<SubtitleAnimationRange> Clone(ImmutableArray<SubtitleAnimationRange> ranges,
+        IReadOnlyDictionary<Guid, Guid> rangeIds, int textOffset = 0)
+    {
+        return ranges.Select(range => range with
+        {
+            Id = rangeIds[range.Id],
+            Utf16Start = checked(range.Utf16Start + textOffset),
+            GeneratedOrigin = RemapOrigin(range.GeneratedOrigin, rangeIds)
+        }).ToImmutableArray();
+    }
+
+    internal static ImmutableArray<SubtitleAnimationRange> PruneOrphanedOrigins(ImmutableArray<SubtitleAnimationRange> ranges)
+    {
+        var current = ranges;
+        while (!current.IsEmpty)
+        {
+            var knownIds = current.Select(range => range.Id).ToHashSet();
+            var retained = current.Where(range => range.GeneratedOrigin?.ParentRangeId is not { } parentId ||
+                knownIds.Contains(parentId)).ToImmutableArray();
+            if (retained.Length == current.Length)
+            {
+                return current;
+            }
+            current = retained;
+        }
+        return current;
+    }
+
+    private static SubtitleAnimationRangeOrigin? RemapOrigin(SubtitleAnimationRangeOrigin? origin,
+        IReadOnlyDictionary<Guid, Guid> rangeIds)
+    {
+        return origin?.ParentRangeId is { } parentId && rangeIds.TryGetValue(parentId, out var replacement)
+            ? origin with { ParentRangeId = replacement } : origin;
     }
 
     internal static ProjectLayer PruneTargets(ProjectLayer layer, SubtitleLine line)

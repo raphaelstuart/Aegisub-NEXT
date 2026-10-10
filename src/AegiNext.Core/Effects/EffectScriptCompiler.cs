@@ -6,7 +6,7 @@ using AegiNext.Core.Timing;
 namespace AegiNext.Core.Effects;
 
 /// <summary>按目标片段精确分配固定和自由时间，生成可持久化的既有动画轨道。</summary>
-public static class EffectScriptCompiler
+public static partial class EffectScriptCompiler
 {
     /// <summary>以目标内容时钟编译脚本；使用应用前基础值，共享端点冲突或越界值整体失败。</summary>
     public static ImmutableArray<AnimationTrack> Compile(EffectScript script, ProjectLayer target, SubtitleStyle? subtitleStyle = null,
@@ -229,7 +229,8 @@ public static class EffectScriptCompiler
     }
 
     private static void Add(Dictionary<AnimationTrackTarget, List<Keyframe>> tracks, AnimationTrackTarget target,
-        EffectScriptKeyframe source, MediaTime time, AnimationValue baseValue, MediaTime origin, bool preserveUnmentionedTime)
+        EffectScriptKeyframe source, MediaTime time, AnimationValue baseValue, MediaTime origin, bool preserveUnmentionedTime,
+        bool reverse = false)
     {
         var value = baseValue;
         if (source.Value.Kind != EffectScriptValueKind.BASE)
@@ -261,7 +262,7 @@ public static class EffectScriptCompiler
             }
         }
 
-        var key = new Keyframe(time, value, source.Interpolation) { Exponent = source.Exponent };
+        var key = new Keyframe(time, value, source.Interpolation) { Exponent = source.Exponent, Reverse = reverse };
         if (frames.Count > 0 && frames[^1].Time == time)
         {
             if (!frames[^1].Value.Equals(value))
@@ -280,7 +281,7 @@ public static class EffectScriptCompiler
                     throw new EffectScriptException($"{source.Property} 在未声明区间后发生跳变，请显式声明连续关键帧。", source.Line, source.Column);
                 }
 
-                frames[^1] = frames[^1] with { Interpolation = KeyframeInterpolation.HOLD };
+                frames[^1] = frames[^1] with { Interpolation = KeyframeInterpolation.HOLD, Reverse = false };
             }
 
             frames.Add(key);
