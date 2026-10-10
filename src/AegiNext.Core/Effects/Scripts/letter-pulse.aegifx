@@ -1,0 +1,14 @@
+# Each grapheme grows once over a 300ms complete period, then rests.
+effect "letter-pulse" version 2
+short-clip compress
+
+scope letters current
+    unit grapheme
+    stagger 60ms
+    segment pulse fixed 150ms pingpong
+        at 0 scale base ease-in-out
+        at 1 scale factor(1.25, 1.25)
+    end
+    segment rest flex 1
+    end
+end

@@ -1,0 +1,24 @@
+# Whole-subtitle opacity and local grapheme scale animate simultaneously.
+effect "scoped-fade-pulse" version 2
+short-clip compress
+
+scope whole subtitle
+    unit group
+    segment entrance fixed 300ms
+        at 0 opacity 0 ease-out
+        at 1 opacity base
+    end
+    segment rest flex 1
+    end
+end
+
+scope letters current
+    unit grapheme
+    stagger 60ms
+    segment pulse fixed 150ms pingpong
+        at 0 scale base ease-in-out
+        at 1 scale factor(1.25, 1.25)
+    end
+    segment rest flex 1
+    end
+end

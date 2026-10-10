@@ -14,7 +14,7 @@ Start with [Quickstart](quick-start.md): create a project, time a subtitle, and 
 | [ASS interoperability](ass-compatibility.md) | Correspondence, gaps, conversion limits, and priorities |
 | [ASS tag audit](ass-tag-audit.md) | Native capabilities, conversion in each direction, implementation status, and conversion boundaries |
 | [Timing post-processor](timing-post-processor.md) | Associate timing options with styles and process selected timeline clips |
-| [Effect scripts](effect-dsl.md) | Apply and write `.aegifx` effects |
+| [Effect scripts](effect-dsl.md) | Apply `.aegifx` effects; write whole-subtitle or grouped text animation |
 | [Video export](export.md) | CPU/GPU encoding, audio, and HDR |
 
 ## Develop AegiNext

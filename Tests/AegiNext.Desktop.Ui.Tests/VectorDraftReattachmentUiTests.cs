@@ -36,10 +36,10 @@ public sealed class VectorDraftReattachmentUiTests
                 YFieldKey = "RectangleCorner_Y",
                 XInputName = "X",
                 YInputName = "Y",
-                [!VectorDraftInput.XProperty] = new Binding("X.Draft.Value") { Source = field, Mode = BindingMode.TwoWay },
-                [!VectorDraftInput.YProperty] = new Binding("Y.Draft.Value") { Source = field, Mode = BindingMode.TwoWay },
-                [!VectorDraftInput.XTextProperty] = new Binding("X.Draft.RawText") { Source = field, Mode = BindingMode.TwoWay },
-                [!VectorDraftInput.YTextProperty] = new Binding("Y.Draft.RawText") { Source = field, Mode = BindingMode.TwoWay }
+                [!VectorDraftInput.xProperty] = new Binding("X.Draft.Value") { Source = field, Mode = BindingMode.TwoWay },
+                [!VectorDraftInput.yProperty] = new Binding("Y.Draft.Value") { Source = field, Mode = BindingMode.TwoWay },
+                [!VectorDraftInput.xTextProperty] = new Binding("X.Draft.RawText") { Source = field, Mode = BindingMode.TwoWay },
+                [!VectorDraftInput.yTextProperty] = new Binding("Y.Draft.RawText") { Source = field, Mode = BindingMode.TwoWay }
             })
         };
         var first = new Window { Width = 500, Height = 180, Content = content };

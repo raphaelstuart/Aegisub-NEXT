@@ -13,5 +13,7 @@
     <None Include="../../docs/en/examples/effects/slide-pop.aegifx" Link="Samples/slide-pop.aegifx" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/en/examples/effects/mask-morph.aegifx" Link="Samples/mask-morph.aegifx" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/en/examples/effects/mask-slide.aegifx" Link="Samples/mask-slide.aegifx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/en/examples/effects/grouped-*.aegifx" Link="Samples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/en/examples/effects/scoped-fade-pulse.aegifx" Link="Samples/scoped-fade-pulse.aegifx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

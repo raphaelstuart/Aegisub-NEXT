@@ -1,4 +1,4 @@
 interface:
   display_name: "AegiNext Effect DSL"
-  short_description: "Write and validate duration-adaptive subtitle effect scripts."
-  default_prompt: "Use $aeginext-effect-dsl to write a subtitle effect with fixed edges and a flexible hold."
+  short_description: "Write and validate whole-subtitle or grouped text effects."
+  default_prompt: "Use $aeginext-effect-dsl to write and validate a subtitle effect with whole-subtitle or grouped text scopes and adaptive timing."

@@ -407,6 +407,62 @@ public sealed class EffectScriptV2CompilerTests
         ProjectValidator.Validate(new() { Layers = [layer with { Tracks = result.Tracks }] });
     }
 
+    [Fact]
+    public void ForwardCycleRequiresClosedEndpointsEvenWhenOnlyOneCycleFits()
+    {
+        var line = new SubtitleLine { Text = "甲", End = new(1, 10) };
+        var script = EffectScriptParser.Parse("""
+            effect "unclosed-cycle" version 2
+            short-clip compress
+            scope whole current
+                segment wave flex 1 cycle 300ms
+                    at 0 rotation 0
+                    at 1 rotation 100
+                end
+            end
+            """);
+
+        var error = Assert.Throws<EffectScriptException>(() => EffectScriptCompiler.CompileTarget(script, Layer(line), subtitle: line));
+
+        Assert.Contains("闭合", error.Message, StringComparison.Ordinal);
+        Assert.Equal(6, error.Line);
+    }
+
+    [Fact]
+    public void ForwardClosureComparesResolvedValuesAndAllowsAnOrdinarySingleFixedEntrance()
+    {
+        var line = new SubtitleLine { Text = "甲", End = new(1) };
+        var closed = EffectScriptParser.Parse("""
+            effect "closed-cycle" version 2
+            short-clip compress
+            scope whole current
+                segment wave flex 1 cycle 300ms
+                    at 0 rotation base
+                    at 1 rotation offset(0)
+                end
+            end
+            """);
+        var layer = Layer(line) with { Transform = new() { Rotation = 25 } };
+
+        var result = EffectScriptCompiler.CompileTarget(closed, layer, subtitle: line);
+
+        Assert.All(Assert.Single(result.Tracks).Keyframes, frame => Assert.Equal(25, frame.Value.Scalar));
+        var entrance = EffectScriptParser.Parse("""
+            effect "entrance" version 2
+            short-clip compress
+            scope whole current
+                segment enter fixed 300ms repeat 1
+                    at 0 rotation 0
+                    at 1 rotation 100
+                end
+                segment rest flex 1
+                end
+            end
+            """);
+        var single = Assert.Single(EffectScriptCompiler.CompileTarget(entrance, layer, subtitle: line).Tracks);
+        Assert.Equal(100, single.Keyframes[^1].Value.Scalar);
+    }
+
     private static EffectScript Pulse(string unit, string fields = "") => EffectScriptParser.Parse($"""
         effect "pulse" version 2
         short-clip compress

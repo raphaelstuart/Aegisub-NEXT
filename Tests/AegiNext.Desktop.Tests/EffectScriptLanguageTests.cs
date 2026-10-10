@@ -122,4 +122,126 @@ public sealed class EffectScriptLanguageTests
         Assert.Equal(SyntaxTokenKind.PROPERTY, tokens.Single(token => SOURCE.Substring(token.Start, token.Length) == "mask-node(2, 3).out-handle").Kind);
         Assert.Equal(SyntaxTokenKind.INTERPOLATION, tokens.Single(token => SOURCE.Substring(token.Start, token.Length) == "power").Kind);
     }
+
+    [Fact]
+    public void EscapedStringsKeepHashesInsideStringsAndStillPartitionTheSource()
+    {
+        const string SOURCE = """
+            scope letters range(1,2)
+                unit split("#", "\"", "\\", "\n") # real comment
+                stagger 60ms
+                segment pulse fixed 150ms repeat 2 pingpong
+            """;
+
+        var tokens = EffectScriptLanguage.Tokenize(SOURCE);
+
+        Assert.Equal(SOURCE, string.Concat(tokens.Select(token => SOURCE.Substring(token.Start, token.Length))));
+        var comment = Assert.Single(tokens, token => token.Kind == SyntaxTokenKind.COMMENT);
+        Assert.Equal("# real comment", SOURCE.Substring(comment.Start, comment.Length));
+        Assert.Equal(4, tokens.Count(token => token.Kind == SyntaxTokenKind.STRING));
+        Assert.Contains(tokens, token => SOURCE.Substring(token.Start, token.Length) == "scope" && token.Kind == SyntaxTokenKind.KEYWORD);
+        Assert.Contains(tokens, token => SOURCE.Substring(token.Start, token.Length) == "range" && token.Kind == SyntaxTokenKind.FUNCTION);
+        Assert.Contains(tokens, token => SOURCE.Substring(token.Start, token.Length) == "split" && token.Kind == SyntaxTokenKind.FUNCTION);
+        Assert.Contains(tokens, token => SOURCE.Substring(token.Start, token.Length) == "pingpong" && token.Kind == SyntaxTokenKind.KEYWORD);
+    }
+
+    [Theory]
+    [InlineData("", "effect \"my-effect\" version 2")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\n", "scope letters current")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters ", "range(1,1)")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\n", "unit grapheme")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nunit ", "chunk(2)")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nunit ", "split(\"、\", \",\")")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\norder ", "reverse")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nstate ", "inactive")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nsegment wave fixed 150ms ", "repeat 1")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nsegment wave fixed 150ms ", "pingpong")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nsegment wave flex 1 ", "cycle 300ms")]
+    [InlineData("effect \"test\" version 2\nshort-clip compress\nscope letters current\nsegment wave flex 1 cycle 300ms ", "pingpong")]
+    public void VersionTwoCompletionOffersScopesUnitsAndSegmentModifiers(string source, string insertion)
+    {
+        Assert.Contains(EffectScriptLanguage.Complete(source, source.Length), item => item.Insertion == insertion);
+    }
+
+    [Fact]
+    public void SegmentEndReturnsToItsScopeAndScopeEndReturnsToTheRoot()
+    {
+        const string SOURCE = """
+            effect "test" version 2
+            short-clip compress
+            scope letters current
+                unit grapheme
+                segment wave fixed 300ms
+                    at 0 scale base
+                    at 1 scale base
+                end
+
+            """;
+
+        var insideScope = EffectScriptLanguage.Complete(SOURCE, SOURCE.Length);
+
+        Assert.Contains(insideScope, item => item.Insertion == "segment stay flex 1");
+        Assert.Contains(insideScope, item => item.Insertion == "end");
+        Assert.DoesNotContain(insideScope, item => item.Insertion.StartsWith("scope ", StringComparison.Ordinal) ||
+            item.Insertion.StartsWith("unit ", StringComparison.Ordinal) || item.Insertion.StartsWith("at ", StringComparison.Ordinal));
+        var closed = SOURCE + "end # close scope\n";
+        var root = EffectScriptLanguage.Complete(closed, closed.Length);
+        Assert.Contains(root, item => item.Insertion == "scope letters current");
+        Assert.DoesNotContain(root, item => item.Insertion.StartsWith("segment ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void QuotedHashesAndEscapedQuotesDoNotCorruptThePriorScopeStructure()
+    {
+        const string SOURCE = """
+            effect "test" version 2
+            short-clip compress
+            scope letters current
+                unit split("\"", "#") # end scope ignored
+                sta
+            """;
+
+        var completions = EffectScriptLanguage.Complete(SOURCE, SOURCE.Length);
+
+        Assert.Contains(completions, item => item.Insertion == "stagger 60ms");
+        Assert.Contains(completions, item => item.Insertion == "state normal");
+    }
+
+    [Fact]
+    public void UsedScopeFieldsAndWrongSegmentModifiersAreNotSuggested()
+    {
+        const string SOURCE = "effect \"test\" version 2\nshort-clip compress\nscope letters current\nunit grapheme\ndelay 0ms\nstagger 60ms\norder forward\nstate normal\n";
+        var fields = EffectScriptLanguage.Complete(SOURCE, SOURCE.Length);
+        Assert.DoesNotContain(fields, item => item.Insertion.StartsWith("unit ", StringComparison.Ordinal) ||
+            item.Insertion.StartsWith("delay ", StringComparison.Ordinal) || item.Insertion.StartsWith("stagger ", StringComparison.Ordinal) ||
+            item.Insertion.StartsWith("order ", StringComparison.Ordinal) || item.Insertion.StartsWith("state ", StringComparison.Ordinal));
+        var fixedSource = SOURCE + "segment wave fixed 300ms repeat 2 pingpong ";
+        Assert.Empty(EffectScriptLanguage.Complete(fixedSource, fixedSource.Length));
+        var flexSource = SOURCE + "segment wave flex 1 ";
+        Assert.DoesNotContain(EffectScriptLanguage.Complete(flexSource, flexSource.Length), item => item.Insertion.StartsWith("repeat", StringComparison.Ordinal) || item.Insertion == "pingpong");
+        var v1Source = "effect \"test\" version 1\nshort-clip compress\nsegment wave fixed 300ms ";
+        Assert.Empty(EffectScriptLanguage.Complete(v1Source, v1Source.Length));
+    }
+
+    [Theory]
+    [InlineData("unit split(\"#")]
+    [InlineData("unit split(\"\\\"#")]
+    [InlineData("unit split(\"#\") # comment")]
+    public void StringAndCommentCaretsDoNotOfferCompletion(string source)
+    {
+        Assert.Empty(EffectScriptLanguage.Complete(source, source.Length));
+    }
+
+    [Fact]
+    public void RangeAndVisualStatePropertyCompletionUsesTheTargetMetadata()
+    {
+        const string RANGE = "effect \"test\" version 2\nshort-clip compress\nscope letters current\nunit grapheme\nsegment stay flex 1\nat 0 ";
+        var range = EffectScriptLanguage.Complete(RANGE, RANGE.Length);
+        Assert.Contains(range, item => item.Insertion == "position");
+        Assert.DoesNotContain(range, item => item.Insertion is "opacity" or "blur" or "mask-position" or "path-progress");
+        var visual = RANGE.Replace("unit grapheme\n", "unit grapheme\nstate active\n", StringComparison.Ordinal);
+        var active = EffectScriptLanguage.Complete(visual, visual.Length);
+        Assert.Contains(active, item => item.Insertion == "fill");
+        Assert.DoesNotContain(active, item => item.Insertion is "position" or "scale" or "font-size");
+    }
 }

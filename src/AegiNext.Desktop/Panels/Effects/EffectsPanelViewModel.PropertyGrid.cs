@@ -61,6 +61,8 @@ internal sealed partial class EffectsPanelViewModel
     public bool CanCreateRange => CanEditTextScope && session.Details.TextSelectionLength > 0;
     public bool IsWholeLayerTarget => Target.TextRangeId is null && Target.State == SubtitleAnimationState.NORMAL;
     public bool CanEditTargetTransform => Target.State == SubtitleAnimationState.NORMAL;
+    public string PositionLabel => Localization.Get(Target.TextRangeId is null ? "Workbench.PositionVector" : "Workbench.LocalPositionVector");
+    public string? PositionEditingHint => Target.TextRangeId is null ? null : Localization.Get("Workbench.LocalPositionHint");
     public AnimationPropertyRowViewModel[] TypographyRows { get => typographyRows; private set => SetItems(ref typographyRows, value, nameof(TypographyRows)); }
     public AnimationPropertyRowViewModel[] FillRows { get => fillRows; private set => SetItems(ref fillRows, value, nameof(FillRows)); }
     public AnimationPropertyRowViewModel[] StrokeRows { get => strokeRows; private set => SetItems(ref strokeRows, value, nameof(StrokeRows)); }
@@ -155,7 +157,7 @@ internal sealed partial class EffectsPanelViewModel
         StrokeRows = Rows(AnimationProperty.STROKE, AnimationProperty.STROKE_WIDTH, AnimationProperty.STROKE_BLUR);
         ShadowRows = line is not null ? Rows(AnimationProperty.SHADOW_COLOR, AnimationProperty.SHADOW_OFFSET, AnimationProperty.SHADOW_BLUR) : [];
         foreach (var property in new[] { nameof(CanEditTextScope), nameof(CanCreateRange),
-            nameof(CanManageRange), nameof(IsWholeLayerTarget), nameof(CanEditTargetTransform),
+            nameof(CanManageRange), nameof(IsWholeLayerTarget), nameof(CanEditTargetTransform), nameof(PositionLabel), nameof(PositionEditingHint),
             nameof(ClipExpanded), nameof(TransformExpanded), nameof(TypographyExpanded), nameof(FillExpanded),
             nameof(StrokeExpanded), nameof(ShadowExpanded), nameof(CompositeExpanded), nameof(PathExpanded), nameof(AnimationExpanded),
             nameof(IsPositionAnimated), nameof(IsScaleAnimated), nameof(IsRotationAnimated), nameof(IsOpacityAnimated), nameof(IsBlurAnimated), nameof(ColorSpace), nameof(CanResetPositionAnimation), nameof(CanResetScaleAnimation),

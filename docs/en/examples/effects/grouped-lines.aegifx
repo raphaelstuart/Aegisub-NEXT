@@ -1,0 +1,14 @@
+# Only explicit LF and CRLF line breaks create groups; soft wrapping does not.
+effect "grouped-lines" version 2
+short-clip compress
+
+scope lines current
+    unit line
+    stagger 60ms
+    segment bounce fixed 150ms pingpong
+        at 0 position base ease-out
+        at 1 position offset(0, -20)
+    end
+    segment rest flex 1
+    end
+end

@@ -49,6 +49,7 @@ internal sealed partial class WorkbenchSession
         var vm = ViewModel.Effects;
         var target = AnimationTarget!;
         var placement = ResolvePlacement(editor.Snapshot, layer);
+        var position = InspectorPosition(layer, placement);
         var propertyName = fieldKey.EndsWith("Input", StringComparison.Ordinal) ? fieldKey[..^5] : fieldKey;
         using var updateLease = BeginWorkbenchUpdate();
         try
@@ -59,8 +60,8 @@ internal sealed partial class WorkbenchSession
                 case "LayerEnd": vm.LayerEnd = TimelineTimeText.Format(layer.End); break;
                 case "LayerWidth": vm.LayerWidth = (decimal)(layer.Shape?.Width ?? layer.Image?.Width ?? 300); break;
                 case "LayerHeight": vm.LayerHeight = (decimal)(layer.Shape?.Height ?? layer.Image?.Height ?? 180); break;
-                case "PositionX": vm.PositionX = placement.BasePosition is { } x ? (decimal)(x.X + InspectorVector(layer, AnimationProperty.POSITION, layer.Transform.Position).X) : null; break;
-                case "PositionY": vm.PositionY = placement.BasePosition is { } y ? (decimal)(y.Y + InspectorVector(layer, AnimationProperty.POSITION, layer.Transform.Position).Y) : null; break;
+                case "PositionX": vm.PositionX = position is { } x ? (decimal)x.X : null; break;
+                case "PositionY": vm.PositionY = position is { } y ? (decimal)y.Y : null; break;
                 case "ScaleX": vm.ScaleX = (decimal)InspectorVector(layer, AnimationProperty.SCALE, layer.Transform.Scale).X; break;
                 case "ScaleY": vm.ScaleY = (decimal)InspectorVector(layer, AnimationProperty.SCALE, layer.Transform.Scale).Y; break;
                 case "Rotation": vm.Rotation = (decimal)InspectorValue(layer, AnimationProperty.ROTATION, layer.Transform.Rotation); break;

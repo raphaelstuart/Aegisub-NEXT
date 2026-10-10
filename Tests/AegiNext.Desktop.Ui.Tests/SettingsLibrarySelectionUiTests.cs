@@ -1,5 +1,6 @@
 using System.Reflection;
 using AegiNext.Application.Presets;
+using AegiNext.Core.Effects;
 using AegiNext.Core.Presets;
 using AegiNext.Desktop.Settings;
 using AegiNext.Desktop.Settings.Effects;
@@ -120,7 +121,7 @@ public sealed class SettingsLibrarySelectionUiTests
                 window.ViewModel.Effects.AddCommand.Execute(null);
                 window.ViewModel.Effects.Name = "Changed 脚本 123";
                 Assert.Null(window.ViewModel.Effects.SelectedEffect);
-                Assert.Equal(7, window.ViewModel.Effects.Effects.Length);
+                Assert.Equal(BuiltinEffectScripts.Templates.Length, window.ViewModel.Effects.Effects.Length);
             }
             else
             {
@@ -390,7 +391,7 @@ public sealed class SettingsLibrarySelectionUiTests
             window.SelectPage(effects ? SettingsPage.EFFECTS : SettingsPage.STYLES);
             window.Show();
             var list = UiTestActions.Find<ListBox>(window, effects ? "EffectScriptList" : "StyleList");
-            var start = effects ? 7 : 0;
+            var start = effects ? BuiltinEffectScripts.Templates.Length : 0;
             ClickItem(window, list, start);
             ClickItem(window, list, start + 2, RawInputModifiers.Control);
             Assert.Equal(2, list.Selection.SelectedItems.Count);

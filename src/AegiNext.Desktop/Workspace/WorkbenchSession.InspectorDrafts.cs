@@ -112,20 +112,28 @@ internal sealed partial class WorkbenchSession
             var target = AnimationTarget!;
             var positionX = InspectorVector(selected, AnimationProperty.POSITION, selected.Transform.Position).X;
             var positionY = InspectorVector(selected, AnimationProperty.POSITION, selected.Transform.Position).Y;
-            if (originalPlacement.BasePosition is { } originalBase)
+            if (InspectorPosition(selected, originalPlacement) is { } displayedPosition)
             {
-                var displayedX = originalBase.X + positionX;
-                var displayedY = originalBase.Y + positionY;
+                var displayedX = displayedPosition.X;
+                var displayedY = displayedPosition.Y;
                 var requestedX = ReadEffectNumber(vm.PositionXText, displayedX, "PositionX", "PositionXInput", "PositionXText");
                 var requestedY = ReadEffectNumber(vm.PositionYText, displayedY, "PositionY", "PositionYInput", "PositionYText");
                 if (requestedX != displayedX || requestedY != displayedY)
                 {
-                    if (preparedPlacement.BasePosition is not { } preparedBase)
+                    if (SceneEditing.Target.TextRangeId is not null)
                     {
-                        throw new InvalidDataException(Localization.Get("Workbench.SubtitlePositionUnavailable"), preparedPlacement.Error);
+                        positionX = requestedX;
+                        positionY = requestedY;
                     }
-                    positionX = requestedX == displayedX ? positionX : requestedX - preparedBase.X;
-                    positionY = requestedY == displayedY ? positionY : requestedY - preparedBase.Y;
+                    else
+                    {
+                        if (preparedPlacement.BasePosition is not { } preparedBase)
+                        {
+                            throw new InvalidDataException(Localization.Get("Workbench.SubtitlePositionUnavailable"), preparedPlacement.Error);
+                        }
+                        positionX = requestedX == displayedX ? positionX : requestedX - preparedBase.X;
+                        positionY = requestedY == displayedY ? positionY : requestedY - preparedBase.Y;
+                    }
                 }
             }
             else if (!string.IsNullOrEmpty(vm.PositionXText) || !string.IsNullOrEmpty(vm.PositionYText))

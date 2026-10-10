@@ -35,15 +35,17 @@ The renderer keeps at most 256 layouts in an LRU cache and one latest animated l
 
 ## Text range property animation
 
-`AnimationTrackTarget` identifies a property, an optional text range ID, and a normal/active/inactive painting state. Mask nodes and text ranges are mutually exclusive. `SubtitleLine.AnimationRanges` stores grapheme-safe UTF-16 half-open ranges with local scale, Z rotation, and a pivot mode. Ranges may overlap: later ranges override the same painting property, and local matrices compose in saved order.
+`AnimationTrackTarget` identifies a property, an optional text range ID, and a normal/active/inactive painting state. Mask nodes and text ranges are mutually exclusive. `SubtitleLine.AnimationRanges` stores grapheme-safe UTF-16 half-open ranges with local pixel Offset, scale, Z rotation, and a pivot mode. Ranges may overlap: later ranges override the same painting property, and local matrices compose in saved order. A scoped Normal `POSITION` track evaluates the range Offset, whose default is `(0, 0)`.
 
 Font size and letter spacing reshape and reflow text at each evaluated time. Fill, stroke, and shadow color/offset/blur apply after layout. Karaoke states share normal-state geometry: normal animations precede static karaoke appearance, state animations follow it, and outline-step inactive stroke hiding applies last.
 
-Local scale and rotation preserve layout occupancy. A range center uses the current untransformed layout, with one shared center across multiple lines; imported ASS ranges can use the subtitle anchor. Partial ligature selections retain the original shaping and transform only owned ink. Zero scale remains editable in the property panel, and singular matrices do not cause hit-test errors.
+Local translation, scale, and rotation preserve layout occupancy. A range center uses the current untransformed layout, with one shared center across multiple lines; imported ASS ranges can use the subtitle anchor. Offset translates the transformed range geometry in subtitle-local pixels before layer composition. Partial ligature selections retain the original shaping and transform only owned ink. Zero scale remains editable in the property panel, and singular matrices do not cause hit-test errors.
 
 `MeasureSubtitleTextLayout(document, evaluatedLayer)` includes transformed grapheme geometry. `GetLayerGeometry` reports visible bounds and provides `ContainsWorldPoint` for precise picking. Static subtitle editing retains the `SubtitleLine` overload. Typography changes invalidate layout; paint and local transform changes reuse shaping. Frame cache identity includes values for every complete animation target.
 
 Native color animation defaults to linear RGB interpolation. ASS-origin tracks can use `SRGB` interpolation while stored and evaluated colors remain linear; alpha is never encoded. Ordered operations retain source order and component masks for RGB, alpha, or shadow axes. Relative font size uses multiplication. Font-size operations must be provably valid throughout; conservative validation may reject combinations that rely on synchronized cancellation.
+
+`Keyframe.Reverse` and `AnimationCurve.Reverse` preserve a time-reversed interpolation curve, including clipped phases and component curves. Pingpong therefore reverses a POWER leg exactly rather than replaying its forward acceleration. Curve slicing and composition retain this flag; frame-cache identity includes the resulting evaluated values. DSL version 2 bakes grouping into native ranges and tracks at application time; rendering does not tokenize text or run template clocks.
 
 ## Clip masks
 

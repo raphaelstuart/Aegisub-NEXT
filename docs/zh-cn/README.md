@@ -14,7 +14,7 @@
 | [ASS 互转换能力](ass-compatibility.md) | 对应、超集与缺失功能，转换边界和优先级 |
 | [ASS 标签核查](ass-tag-audit.md) | 原生能力、双向转换、实现状态与转换边界 |
 | [时间后处理](timing-post-processor.md) | 保存样式关联并处理时间线选中片段 |
-| [特效脚本](effect-dsl.md) | 应用与编写 `.aegifx` 特效 |
+| [特效脚本](effect-dsl.md) | 应用 `.aegifx` 特效，编写整句或逐组文字动画 |
 | [视频导出](export.md) | CPU/GPU 编码、音频与 HDR |
 
 ## 开发 AegiNext

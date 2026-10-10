@@ -52,6 +52,8 @@ The Effects panel uses collapsible property tables for clip, transform, typograp
 
 Select text in Subtitle Details, then create an animation range in Effects. The scope selector switches between the whole subtitle and text ranges; the state selector switches normal, active, and inactive appearance. Ranges can be deleted or reordered. Active/inactive states edit painting properties and share normal font-size, spacing, and transform geometry. Disabling animation clears only the complete target. Range identities follow text editing, splitting, and duplication.
 
+For a Normal text range, Position edits its local pixel offset; Scale and Rotation also act on that group's laid-out geometry without changing its layout occupancy. Whole-subtitle Position still moves the layer. Apply **Letter bounce** or **Letter pulse** through the existing preset selector to generate editable grapheme ranges. Version 2 scripts can also group pairs, words, explicit lines, paragraphs, or literal-separated text. Reapplying the same named generated block resets manual changes to its ranges and tracks; editing text remaps the existing result, and reapplication rebuilds its grouping and stagger. See [Effect scripts](effect-dsl.md#version-2-grouped-text) for the complete rules.
+
 Category folding is a personal preference and creates no project undo entry. Folding or refreshing theme/language does not submit drafts. Invalid input keeps its raw text and opens its category when validation fails. Scope/state/property changes handle the current draft first; deferred commits retain the complete target that originally owned the draft.
 
 ## Save and recover

@@ -42,7 +42,7 @@ public sealed class EffectSettingsViewModelTests
         Assert.Equal(1, model.DiagnosticLine);
         Assert.Equal(column, model.DiagnosticColumn);
         Assert.True(model.IsDirty);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
     }
 
     [Theory]
@@ -77,7 +77,7 @@ public sealed class EffectSettingsViewModelTests
     public void BuiltinsAreReadOnlyAndCannotBeDeletedOrSaved()
     {
         var model = new EffectSettingsViewModel();
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
         Assert.All(model.Effects, item => Assert.True(item.IsBuiltin));
         Assert.True(model.IsReadOnly);
         Assert.False(model.SaveCommand.CanExecute(null));
@@ -95,7 +95,7 @@ public sealed class EffectSettingsViewModelTests
         model.SaveRequested += (_, args) => submitted = args.Preset;
         await model.AddCommand.ExecuteAsync(null);
         var draft = Assert.IsType<EffectScriptPreset>(model.Draft);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
         Assert.Null(model.SelectedEffect);
         Assert.Empty(model.SelectedIds);
         Assert.False(model.IsReadOnly);
@@ -108,7 +108,7 @@ public sealed class EffectSettingsViewModelTests
 
         model.UpdateEffects([submitted!]);
 
-        Assert.Equal(8, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length + 1, model.Effects.Length);
         Assert.Equal(draft.Id, model.SelectedEffect!.Id);
         Assert.Equal(new[] { draft.Id }, model.SelectedIds.ToArray());
         Assert.False(model.IsDirty);
@@ -140,7 +140,7 @@ public sealed class EffectSettingsViewModelTests
         Assert.False(model.IsDirty);
         Assert.Null(model.Error);
         Assert.Empty(model.Source);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public sealed class EffectSettingsViewModelTests
         await model.SaveCommand.ExecuteAsync(null);
         Assert.NotNull(model.Error);
         Assert.Equal(0, saves);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
         Assert.True(model.IsDirty);
     }
 
@@ -342,7 +342,7 @@ public sealed class EffectSettingsViewModelTests
         Assert.False(await model.SelectEffectsAsync(target.Id, [target.Id]));
         await model.AddCommand.ExecuteAsync(null);
         Assert.Equal(pending, model.Draft);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
     }
 
     [Theory]
@@ -380,7 +380,7 @@ public sealed class EffectSettingsViewModelTests
         Assert.True(await model.PrepareToLeaveAsync());
         Assert.Null(model.Draft);
         Assert.Empty(model.SelectedIds);
-        Assert.Equal(7, model.Effects.Length);
+        Assert.Equal(BuiltinEffectScripts.Templates.Length, model.Effects.Length);
         Assert.True(await model.SavePendingAsync());
     }
 

@@ -1,0 +1,14 @@
+# Each grapheme bounces once over a 300ms complete period, then rests.
+effect "letter-bounce" version 2
+short-clip compress
+
+scope letters current
+    unit grapheme
+    stagger 60ms
+    segment bounce fixed 150ms pingpong
+        at 0 position base ease-out
+        at 1 position offset(0, -20)
+    end
+    segment rest flex 1
+    end
+end

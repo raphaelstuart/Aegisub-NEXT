@@ -88,6 +88,10 @@ Native macOS/Windows title-bar dragging, scaling, and platform-button hit testin
 
 `ProjectEditor` commits immutable snapshots. Multi-Clip edits/imports are atomic; failed validation leaves the project and history unchanged. Layout changes retain one session and fixed panel instances. Personal layouts, styles, scripts, preferences, and logs are separate from project content.
 
+Effect DSL version 2 resolves named scopes and grapheme-safe groups in Core, then `CompileTarget` / `ComposeTarget` returns both prepared subtitle ranges and animation tracks. Application applies the complete frozen result in one transaction. A generated family matches effect ID, scope name, and parent range ID; its stable grouping signature and text span determine identity reuse. Reapplication replaces that family's results. Renderer and Desktop consume native ranges and tracks rather than interpreting scripts during playback. See [Effect scripts](effect-dsl.md).
+
+Project format 13 persists range Offset, reversed main/component curves, and generated origins. `ProjectStore` accepts versions 3–12 through strict migrations; the new optional values default to zero Offset, false Reverse, and no origin. Version 12 keeps its existing text-animation fields. Older schemas reject the new fields by their owning object, allowing existing subtitle-position Offset fields. Generated parent references must stay within one subtitle and form no cycle; validation does not require child-span containment after manual edits or text remapping.
+
 Preview uses the same scene geometry as editing/export and presents SDR derivatives. The renderer retains linear F16 until display/encoding; worker export reads original media frames. Every asynchronous result checks time, revision, request identity, and ownership before delivery.
 
 ## Contribute

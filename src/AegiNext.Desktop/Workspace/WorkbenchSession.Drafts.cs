@@ -510,9 +510,10 @@ internal sealed partial class WorkbenchSession
                     Rotation = InspectorValue(layer, AnimationProperty.ROTATION, transform.Rotation)
                 };
             }
-            effects.CanEditPosition = layer is not null && placement.BasePosition is not null;
-            effects.PositionX = placement.BasePosition is { } baseX ? (decimal)(baseX.X + transform.X) : null;
-            effects.PositionY = placement.BasePosition is { } baseY ? (decimal)(baseY.Y + transform.Y) : null;
+            var position = InspectorPosition(layer, placement);
+            effects.CanEditPosition = position is not null;
+            effects.PositionX = position is { } displayedX ? (decimal)displayedX.X : null;
+            effects.PositionY = position is { } displayedY ? (decimal)displayedY.Y : null;
             effects.ScaleX = (decimal)transform.ScaleX;
             effects.ScaleY = (decimal)transform.ScaleY;
             effects.Rotation = (decimal)transform.Rotation;

@@ -156,6 +156,7 @@ internal sealed class EffectScriptLibraryCoordinator(WorkbenchSession session, I
     {
         "fade-in-out" => "Fade", "fade-in" => "FadeIn", "fade-out" => "FadeOut",
         "pop-in" => "Pop", "pop-out" => "PopOut", "slide-in" => "Slide", "slide-out" => "SlideOut",
+        "letter-bounce" => "LetterBounce", "letter-pulse" => "LetterPulse",
         _ => throw new ArgumentOutOfRangeException(nameof(id))
     }));
 }

@@ -50,6 +50,7 @@ public static partial class EffectScriptCompiler
         var (plans, prepared, preparedSubtitle) = PrepareScopes(script, target, context, subtitle);
         var working = preserveExisting ? prepared : prepared with { Tracks = [] };
         var intervals = ImmutableArray.CreateBuilder<EffectScriptInterval>();
+        var compilations = new List<EffectScriptCompilation>();
         var touched = new HashSet<AnimationTrackTarget>();
         foreach (var plan in plans)
         {
@@ -58,19 +59,81 @@ public static partial class EffectScriptCompiler
                 continue;
             }
             var timing = AllocateScope(script, plan, duration);
+            var budgetLayer = prepared with { Tracks = prepared.Tracks.Concat(compilations.SelectMany(result => result.Tracks)).ToImmutableArray() };
             var compiled = CompileScope(plan, timing, target, preparedSubtitle, plan.Generated ? preparedSubtitle : subtitle,
-                style, working, prepared, origin, end);
+                style, working, budgetLayer, origin, end);
             RejectScopeOverlap(intervals, compiled.Intervals);
             intervals.AddRange(compiled.Intervals);
             touched.UnionWith(compiled.Tracks.Select(track => track.Target));
-            working = working with { Tracks = EffectScriptComposer.ComposeCompilation(compiled, working) };
-            ValidateScopedTrackBudget(prepared.Tracks.Concat(working.Tracks));
+            compilations.Add(compiled);
+            ValidateScopedTrackBudget(budgetLayer.Tracks.Concat(compiled.Tracks));
         }
-        return new(working.Tracks.Where(track => touched.Contains(track.Target)).ToImmutableArray(), intervals.ToImmutable())
+        var added = AggregateScopes(compilations, working, origin, end);
+        var complete = new EffectScriptCompilation(added, intervals.ToImmutable());
+        var composed = EffectScriptComposer.ComposeCompilation(complete, working);
+        return new(composed.Where(track => touched.Contains(track.Target)).ToImmutableArray(), complete.Intervals)
         {
             PreparedLayer = prepared,
             Subtitle = preparedSubtitle
         };
+    }
+
+    private static ImmutableArray<AnimationTrack> AggregateScopes(List<EffectScriptCompilation> compilations,
+        ProjectLayer working, MediaTime origin, MediaTime end)
+    {
+        var sources = new List<(AnimationTrack Track, EffectScriptInterval Interval)>();
+        foreach (var compilation in compilations)
+        {
+            var byTarget = compilation.Tracks.ToDictionary(track => track.Target);
+            foreach (var interval in compilation.Intervals)
+            {
+                sources.Add((byTarget[interval.Target], interval));
+            }
+        }
+        var existing = working.Tracks.Select(track => track.Target).ToHashSet();
+        return sources.GroupBy(source => source.Track.Target).OrderBy(group => group.Key.Property).ThenBy(group => group.Key.NodeId)
+            .ThenBy(group => group.Key.TextRangeId).ThenBy(group => group.Key.State).Select(group =>
+            {
+                var frames = new List<Keyframe>();
+                foreach (var (track, interval) in group.OrderBy(source => source.Interval.Start).ThenBy(source => source.Interval.End))
+                {
+                    if (frames.Count == 0 && interval.Start > origin)
+                    {
+                        frames.Add(new(origin, track.Keyframes[0].Value, KeyframeInterpolation.HOLD));
+                    }
+                    var slice = AnimationTrackSlicer.Slice(track, interval.Start, interval.End);
+                    foreach (var frame in slice.Keyframes)
+                    {
+                        if (frames.Count > 0 && frames[^1].Time == frame.Time)
+                        {
+                            if (!frames[^1].Value.Equals(frame.Value))
+                            {
+                                throw new EffectScriptException($"{interval.Target.Property} 的不同作用域共享端点存在不同值。", interval.Line, interval.Column);
+                            }
+                            frames[^1] = frame;
+                        }
+                        else
+                        {
+                            if (frame.Time == interval.Start && frames.Count > 0)
+                            {
+                                if (!existing.Contains(group.Key) && !frames[^1].Value.Equals(frame.Value))
+                                {
+                                    throw new EffectScriptException($"{interval.Target.Property} 在未声明区间后发生跳变。", interval.Line, interval.Column);
+                                }
+                                frames[^1] = frames[^1] with { Interpolation = KeyframeInterpolation.HOLD, Reverse = false };
+                            }
+                            frames.Add(frame);
+                        }
+                    }
+                }
+                HoldUntil(frames, end);
+                if (frames.Count > AnimationPropertyMetadata.GetMaximumTrackEntries(group.Key.Property))
+                {
+                    var interval = group.First().Interval;
+                    throw new EffectScriptException("多个作用域的属性轨道超出分量时间并集预算。", interval.Line, interval.Column);
+                }
+                return new AnimationTrack(group.Key, frames.ToImmutableArray());
+            }).ToImmutableArray();
     }
 
     private static EffectScriptCompilation CompileScope(EffectScriptScopePlan plan, EffectScriptScopeTiming timing, ProjectLayer sourceLayer,
@@ -175,6 +238,19 @@ public static partial class EffectScriptCompiler
         EffectScriptSegmentTiming timing, MediaTime cursor, MediaTime origin, ProjectLayer sourceLayer, SubtitleStyle? style,
         SubtitleLine? baseSubtitle, bool preserveExisting)
     {
+        if (!timing.Segment.PingPong && (timing.Segment.CycleDuration.HasValue || timing.Segment.RepeatCount > 1))
+        {
+            var first = flow.Frames[0];
+            var last = flow.Frames[^1];
+            var firstValue = ResolveValue(first, flow.Target,
+                ResolveBaseValue(first, flow.Target, sourceLayer, style, baseSubtitle, first.Value.Kind != EffectScriptValueKind.ABSOLUTE));
+            var lastValue = ResolveValue(last, flow.Target,
+                ResolveBaseValue(last, flow.Target, sourceLayer, style, baseSubtitle, last.Value.Kind != EffectScriptValueKind.ABSOLUTE));
+            if (!firstValue.Equals(lastValue))
+            {
+                throw new EffectScriptException($"{last.Property} 的正向重复或循环必须闭合；首尾求值需相同，或使用 pingpong。", last.Line, last.Column);
+            }
+        }
         var cycles = checked((int)timing.Cycles);
         var legs = timing.Segment.PingPong ? 2 : 1;
         for (var cycle = 0; cycle < cycles; cycle++)

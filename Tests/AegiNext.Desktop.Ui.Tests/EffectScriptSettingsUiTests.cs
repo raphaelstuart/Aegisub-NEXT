@@ -211,7 +211,7 @@ public sealed class EffectScriptSettingsUiTests
             UiTestActions.Click(window, "AddEffectScriptButton");
             Assert.False(source.IsReadOnly);
             Assert.True(window.ViewModel.Effects.IsDirty);
-            Assert.Equal(7, window.ViewModel.Effects.Effects.Length);
+            Assert.Equal(BuiltinEffectScripts.Templates.Length, window.ViewModel.Effects.Effects.Length);
             Assert.Empty(window.ViewModel.Effects.SelectedIds);
             Assert.True(UiTestActions.Find<Button>(window, "SaveEffectScriptButton").IsEffectivelyEnabled);
         }
@@ -481,7 +481,7 @@ public sealed class EffectScriptSettingsUiTests
             window.ViewModel.Effects.DiscardDraft();
 
             Assert.Null(window.ViewModel.Effects.Draft);
-            Assert.Equal(7, window.ViewModel.Effects.Effects.Length);
+            Assert.Equal(BuiltinEffectScripts.Templates.Length, window.ViewModel.Effects.Effects.Length);
             Assert.Empty(UiTestActions.Find<TextBox>(window, "ScriptTextInput").Text!);
             Assert.Equal(0, saves);
         }

@@ -8,6 +8,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AegiNext.Desktop.Ui.Tests;
 
@@ -52,6 +53,7 @@ public sealed class BatchEffectPresetUiTests
         context.Session.Editor.Changed += (_, _) => changes++;
 
         UiTestActions.Click(context.Window, "ApplyPresetButton");
+        await Assert.IsAssignableFrom<IAsyncRelayCommand>(context.ViewModel.Effects.ApplyPresetCommand).ExecutionTask!;
 
         var applied = context.Session.DocumentSnapshot;
         foreach (var id in selected)
@@ -89,6 +91,7 @@ public sealed class BatchEffectPresetUiTests
         UiTestActions.SelectBuiltinPreset(context.Window, "pop-in");
 
         UiTestActions.Click(context.Window, "ApplyPresetButton");
+        await Assert.IsAssignableFrom<IAsyncRelayCommand>(context.ViewModel.Effects.ApplyPresetCommand).ExecutionTask!;
 
         Assert.All(context.Session.DocumentSnapshot.Layers, layer => Assert.Contains(layer.Tracks, track => track.Property == AnimationProperty.SCALE));
         Assert.Equal(first.Id, context.Session.SelectedLayerId);
@@ -115,6 +118,7 @@ public sealed class BatchEffectPresetUiTests
         UiTestActions.Find<ComboBox>(context.Window, "PresetCombo").SelectedIndex = Array.IndexOf(context.ViewModel.Effects.Presets, preset.Name);
 
         UiTestActions.Click(context.Window, "ApplyPresetButton");
+        await Assert.IsAssignableFrom<IAsyncRelayCommand>(context.ViewModel.Effects.ApplyPresetCommand).ExecutionTask!;
 
         Assert.IsType<EffectScriptException>(context.Session.LastError);
         Assert.Same(document, context.Session.DocumentSnapshot);

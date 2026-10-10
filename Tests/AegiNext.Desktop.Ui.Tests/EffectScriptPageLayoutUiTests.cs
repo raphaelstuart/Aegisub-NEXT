@@ -1,4 +1,5 @@
 using AegiNext.Application.Presets;
+using AegiNext.Core.Effects;
 using AegiNext.Desktop.Controls;
 using AegiNext.Desktop.I18n;
 using AegiNext.Desktop.Settings;
@@ -82,7 +83,7 @@ public sealed class EffectScriptPageLayoutUiTests
             ClickToolbar(window, "AddEffectScriptButton");
             Assert.False(input.IsReadOnly);
             Assert.True(window.ViewModel.Effects.IsDirty);
-            Assert.Equal(7, window.ViewModel.Effects.Effects.Length);
+            Assert.Equal(BuiltinEffectScripts.Templates.Length, window.ViewModel.Effects.Effects.Length);
             Assert.Empty(window.ViewModel.Effects.SelectedIds);
             ClickToolbar(window, "SaveEffectScriptButton");
             Assert.Single(saved);

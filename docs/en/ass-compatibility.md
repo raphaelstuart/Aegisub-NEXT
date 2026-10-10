@@ -27,11 +27,15 @@ Independent native fill, stroke, and shadow blur cannot fully map to the single 
 
 Native mirroring, independent highlight-edge animation, overlapping range geometry, complex motion paths, layer blur, images, and shape composition may be approximated or omitted. Export changes only the output file; diagnostics identify omitted content and its reason.
 
+Independent text-range translation, including grouped bounce POSITION tracks and static range Offset, has no ASS equivalent. Export reports `Ass.RangeTranslation` and omits it rather than moving the entire subtitle. Reversed nonlinear curves require text-animation sampling, numeric/movement/opacity approximation, or mask event expansion according to the affected property; native project curves retain their exact timing.
+
 ASS 3D rotation, shear, independent X/Y borders, repeated box edge blur, character-encoding overrides, and inline drawing lack complete current adapters. Rotation origin `\org` is also not imported; native tools continue to manage native pivots. The tag audit distinguishes missing native representation, ASS format limits, and unfinished adapters.
 
 ## Advanced ASS editing and file import
 
 The advanced ASS editor provides a temporary text projection of native data. Unchanged timing, color precision, font resources, independent appearances, and preservable native tracks recover their original values. Ordinary text or inline-style changes do not automatically reduce the project to ASS precision. Editing a tag updates its corresponding representable property.
+
+Range Offset, generated-block origins and their parent references, local POSITION tracks, and unrepresentable reversed text curves are retained through this projection. Sampled ASS tags do not become the authoritative replacement for a preserved native reverse curve. To regroup or retime a generated effect after text edits, reapply its template as described in [Effect scripts](effect-dsl.md#editable-results-and-reapplication).
 
 File import follows external ASS semantics, including source-operation order, empty-parameter resets, the karaoke clock, and resolution conversion. The advanced projection and external files have different boundaries. Projection text is not a complete project backup; save `.aeginext` to retain native capabilities.
 
@@ -43,6 +47,7 @@ Conversion results include diagnostics associated with subtitles, source tags, o
 |---|---|
 | `Ass.UnsupportedTag`, `Ass.Drawing` | Source content lacks a current native adapter |
 | `Ass.TransformLayout`, `Ass.TextRangeGeometry` | Parameters survive, but layout and transform order can change appearance |
+| `Ass.RangeTranslation` | Output omits independent text-range translation |
 | `Ass.KaraokeVisual`, `Ass.KaraokeAnimation` | Independent highlight edges or state tracks cannot be fully represented |
 | `Ass.NumberPrecision`, `Ass.ColorPrecision`, `Ass.AlphaPrecision` | Output values undergo numeric or 8-bit quantization |
 | `Ass.TimeQuantization`, `Ass.TransformTimeQuantization`, `Ass.KaraokeQuantization` | Output time undergoes quantization |

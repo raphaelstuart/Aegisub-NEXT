@@ -232,26 +232,7 @@ public static partial class EffectScriptCompiler
         EffectScriptKeyframe source, MediaTime time, AnimationValue baseValue, MediaTime origin, bool preserveUnmentionedTime,
         bool reverse = false)
     {
-        var value = baseValue;
-        if (source.Value.Kind != EffectScriptValueKind.BASE)
-        {
-            var literal = source.Value.Literal!.Value;
-            for (var component = 0; component < value.ComponentCount; component++)
-            {
-                value = value.WithComponent(component, Resolve(source.Value.Kind, baseValue.GetComponent(component), literal.GetComponent(component)));
-            }
-        }
-
-        for (var component = 0; component < value.ComponentCount; component++)
-        {
-            var number = value.GetComponent(component);
-            if (!double.IsFinite(number) || number < AnimationPropertyMetadata.GetMinimum(target.Property, component) ||
-                number > AnimationPropertyMetadata.GetMaximum(target.Property, component))
-            {
-                throw new EffectScriptException($"{source.Property} 的求值结果超出项目允许范围。", source.Line, source.Column);
-            }
-        }
-
+        var value = ResolveValue(source, target, baseValue);
         if (!tracks.TryGetValue(target, out var frames))
         {
             frames = [];
@@ -286,5 +267,30 @@ public static partial class EffectScriptCompiler
 
             frames.Add(key);
         }
+    }
+
+    private static AnimationValue ResolveValue(EffectScriptKeyframe source, AnimationTrackTarget target, AnimationValue baseValue)
+    {
+        var value = baseValue;
+        if (source.Value.Kind != EffectScriptValueKind.BASE)
+        {
+            var literal = source.Value.Literal!.Value;
+            for (var component = 0; component < value.ComponentCount; component++)
+            {
+                value = value.WithComponent(component, Resolve(source.Value.Kind, baseValue.GetComponent(component), literal.GetComponent(component)));
+            }
+        }
+
+        for (var component = 0; component < value.ComponentCount; component++)
+        {
+            var number = value.GetComponent(component);
+            if (!double.IsFinite(number) || number < AnimationPropertyMetadata.GetMinimum(target.Property, component) ||
+                number > AnimationPropertyMetadata.GetMaximum(target.Property, component))
+            {
+                throw new EffectScriptException($"{source.Property} 的求值结果超出项目允许范围。", source.Line, source.Column);
+            }
+        }
+
+        return value;
     }
 }

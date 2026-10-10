@@ -1,0 +1,14 @@
+# Count two graphemes per group, including spaces; restart at every hard line.
+effect "grouped-pairs" version 2
+short-clip compress
+
+scope pairs current
+    unit chunk(2)
+    stagger 60ms
+    segment bounce fixed 150ms pingpong
+        at 0 position base ease-out
+        at 1 position offset(0, -20)
+    end
+    segment rest flex 1
+    end
+end
