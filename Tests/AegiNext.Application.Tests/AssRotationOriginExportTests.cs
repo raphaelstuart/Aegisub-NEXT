@@ -199,6 +199,31 @@ public sealed class AssRotationOriginExportTests
         Assert.Equal(quantized, written.Diagnostics.Any(item => item.Code == "Ass.NumberPrecision"));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void OrderedPositionUsesOnlyTheComponentsEnabledByItsMask(bool animatedRotation, bool moving)
+    {
+        var rotation = animatedRotation ? "\\frz23\\t(0,2000,\\frz97)" : "\\frz23";
+        var document = Import("{\\pos(120,80)\\org(200,140)" + rotation + "}Axis");
+        var position = new AnimationTrack(AnimationProperty.POSITION, [])
+        {
+            InitialValue = new ScenePoint(80, 60),
+            Transforms = [new(Guid.NewGuid(), new(0), new(2), new ScenePoint(moving ? 180 : 80, 999)) { ComponentMask = 1 }]
+        };
+        document = document with { Layers = [document.Layers[0] with { Tracks = document.Layers[0].Tracks.Add(position) }] };
+        ProjectValidator.Validate(document);
+
+        var written = AssSubtitleFormat.Write(document);
+
+        Assert.Contains("\\org(200,140)", written.Text, StringComparison.Ordinal);
+        Assert.Equal(moving, written.Text.Contains("\\move(", StringComparison.Ordinal));
+        Assert.DoesNotContain(written.Diagnostics, item => item.Code is "Ass.RotationOrigin" or "Ass.TransformPivotAnimation" or "Subtitle.Composition");
+        AssertGeometry(document, ImportFile(written.Text));
+        Assert.Equal(new ScenePoint(moving ? 180 : 80, 999), position.Transforms[0].Value.Vector);
+    }
+
     private static ProjectDocument Import(string body) => ImportFile("""
         [Script Info]
         ScriptType: v4.00+

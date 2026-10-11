@@ -10,9 +10,28 @@ internal static class AssMoveConversion
     internal static bool TryConstant(AnimationTrack track, out AnimationValue value)
     {
         value = track.IsOrdered ? track.InitialValue!.Value : track.Keyframes[0].Value;
-        var baseline = value;
-        return track.IsOrdered ? track.Transforms.All(operation => operation.Value == baseline) :
-            track.Keyframes.All(key => key.Value == baseline);
+        if (!track.IsOrdered)
+        {
+            var baseline = value;
+            return track.Keyframes.All(key => key.Value == baseline);
+        }
+        foreach (var operation in track.Transforms)
+        {
+            for (var component = 0; component < value.ComponentCount; component++)
+            {
+                if (operation.ComponentMask != 0 && (operation.ComponentMask & (1 << component)) == 0)
+                {
+                    continue;
+                }
+                var target = operation.Value.GetComponent(component);
+                var initial = value.GetComponent(component);
+                if (operation.Mode == AnimationTransformMode.MULTIPLY_BY ? initial != 0 && !target.Equals(1d) : !target.Equals(initial))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     internal static AssLinearMove? FromTrack(AnimationTrack track)
@@ -27,7 +46,11 @@ internal static class AssMoveConversion
             {
                 return null;
             }
-            return new(track.InitialValue!.Value.Vector, operation.Value.Vector, operation.Start, operation.End,
+            var initial = track.InitialValue!.Value.Vector;
+            var target = operation.Value.Vector;
+            var destination = new ScenePoint(operation.ComponentMask == 0 || (operation.ComponentMask & 1) != 0 ? target.X : initial.X,
+                operation.ComponentMask == 0 || (operation.ComponentMask & 2) != 0 ? target.Y : initial.Y);
+            return new(initial, destination, operation.Start, operation.End,
                 !operation.Acceleration.Equals(1d));
         }
         var keys = track.Keyframes;

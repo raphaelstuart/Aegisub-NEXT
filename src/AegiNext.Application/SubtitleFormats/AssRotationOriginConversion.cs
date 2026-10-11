@@ -172,28 +172,6 @@ internal static class AssRotationOriginConversion
 
     internal static bool TryConstant(AnimationTrack track, out AnimationValue value)
     {
-        value = track.IsOrdered ? track.InitialValue!.Value : track.Keyframes[0].Value;
-        if (!track.IsOrdered)
-        {
-            var baseline = value;
-            return track.Keyframes.All(key => key.Value == baseline);
-        }
-        foreach (var operation in track.Transforms)
-        {
-            for (var component = 0; component < value.ComponentCount; component++)
-            {
-                if (operation.ComponentMask != 0 && (operation.ComponentMask & (1 << component)) == 0)
-                {
-                    continue;
-                }
-                var target = operation.Value.GetComponent(component);
-                var initial = value.GetComponent(component);
-                if (operation.Mode == AnimationTransformMode.MULTIPLY_BY ? initial != 0 && !target.Equals(1d) : !target.Equals(initial))
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
+        return AssMoveConversion.TryConstant(track, out value);
     }
 }
