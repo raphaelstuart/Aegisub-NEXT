@@ -67,13 +67,18 @@ public sealed partial class VideoPreviewController
                 while (true)
                 {
                     Task seek;
+                    Task cachedPreview;
                     lock (gate)
                     {
                         ThrowIfCommandObsoleteUnderLock(run, operationRevision);
                         presentationRevision = revision;
                         seek = session.SeekAsync(target);
+                        CaptureSeekPreviewStateUnderLock(run, session, target);
+                        cachedPreview = mode == VideoPreviewSeekMode.INTERACTIVE
+                            ? StartCachedPreviewUnderLock(run, session, target, presentationRevision)
+                            : Task.CompletedTask;
                     }
-                    await seek.ConfigureAwait(false);
+                    await Task.WhenAll(seek, cachedPreview).ConfigureAwait(false);
                     if (mode == VideoPreviewSeekMode.TRANSPORT ||
                         await WaitForSeekPresentationAsync(run, session, operationRevision, presentationRevision).ConfigureAwait(false) ||
                         mode == VideoPreviewSeekMode.INTERACTIVE)
@@ -101,6 +106,7 @@ public sealed partial class VideoPreviewController
                 lock (gate)
                 {
                     ThrowIfCommandObsoleteUnderLock(run, operationRevision);
+                    run.SeekPreviewState = null;
                     play = session.PlayAsync();
                 }
                 await play.ConfigureAwait(false);

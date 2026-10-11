@@ -57,6 +57,15 @@ public sealed class InteractivePreviewSettlingUiTests
         var last = first + new Vector(timeline.PixelsPerSecond * 4, 0);
         context.Window.MouseDown(first, MouseButton.Left);
         var scenes = 0;
+        context.Session.InteractionDiagnostics.Enabled = true;
+        var refreshes = 0;
+        context.Session.InteractionDiagnostics.Recorded += value =>
+        {
+            if (value.Stage == "refresh")
+            {
+                refreshes++;
+            }
+        };
         context.ViewModel.Preview.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == "Scene")
@@ -73,6 +82,7 @@ public sealed class InteractivePreviewSettlingUiTests
             Assert.Equal(new MediaTime(5), context.Session.ProjectPosition);
             Assert.Equal(new MediaTime(5), context.ViewModel.Timeline.Position);
             Assert.Equal(0, scenes);
+            Assert.Equal(0, refreshes);
             await DrainAsync(() => context.Controller.Snapshot.PresentedAtPosition == new MediaTime(5));
             Assert.InRange(scenes, 1, 5);
         }

@@ -12,6 +12,13 @@ public interface IVideoPreviewConverter : IDisposable
     /// </summary>
     SdrVideoFrame Convert(IVideoFrame frame, CancellationToken cancellationToken = default);
 
+    /// <summary>转换具有真实显示区间的借用帧；默认使用原始帧转换，合成器可保留区间用于背景复用。</summary>
+    SdrVideoFrame Convert(PositionedVideoFrame frame, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        return Convert(frame.Frame, cancellationToken);
+    }
+
     /// <summary>返回准备图像及其保留的附属像素内存；合成器应包含独立背景图像并去重共享数组。</summary>
     long GetRetainedBytes(SdrVideoFrame frame)
     {

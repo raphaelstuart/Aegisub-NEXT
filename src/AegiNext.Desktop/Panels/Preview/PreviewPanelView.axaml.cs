@@ -141,8 +141,10 @@ internal sealed partial class PreviewPanelView : UserControl, IWorkbenchPanelVie
         {
             ApplyScene();
             var origin = update.CompositionDocument?.Media?.MediaOrigin ?? viewModel.Scene.Document.Media?.MediaOrigin ?? MediaTime.Zero;
-            var start = update.Snapshot.PresentedFrameTime is { } time ? time - origin : (MediaTime?)null;
-            var end = update.Snapshot.PresentedFrameEnd is { } next ? next - origin : (MediaTime?)null;
+            var sourceTime = update.IsTransientPreview ? update.SourceFrameTime : update.Snapshot.PresentedFrameTime;
+            var sourceEnd = update.IsTransientPreview ? update.SourceFrameEnd : update.Snapshot.PresentedFrameEnd;
+            var start = sourceTime is { } time ? time - origin : (MediaTime?)null;
+            var end = sourceEnd is { } next ? next - origin : (MediaTime?)null;
             canvas.PresentComposite(frame, update.BackgroundFrame ?? frame, update.CompositionTime ?? start,
                 update.CompositionDocument, update.IsInteractiveComposition, start, end);
         }

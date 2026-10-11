@@ -46,6 +46,19 @@ public sealed class SdrVideoFrame
 
     public ReadOnlyMemory<byte> Pixels { get; }
 
+    private SdrVideoFrame(SdrVideoFrame source)
+    {
+        Width = source.Width;
+        Height = source.Height;
+        Pixels = source.Pixels;
+    }
+
+    /// <summary>创建独立的图像身份并共享不可变像素，供各次预览交付记录各自的时间与合成状态。</summary>
+    public SdrVideoFrame CreateView()
+    {
+        return new(this);
+    }
+
     internal static SdrVideoFrame FromOwnedPixels(int width, int height, byte[] pixels)
     {
         return new(width, height, pixels, true);

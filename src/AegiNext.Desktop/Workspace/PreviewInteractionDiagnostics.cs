@@ -46,7 +46,7 @@ internal sealed class PreviewInteractionDiagnostics
             return;
         }
 
-        var delivery = stage == "delivered";
+        var delivery = stage is "delivered" or "cached-delivered";
         var value = new PreviewInteractionEvent(stage, session, delivery ? acceptedSequence : sequence,
             delivery ? acceptedTarget : target, frameTime, frameEnd, Stopwatch.GetTimestamp());
         events.Enqueue(value);

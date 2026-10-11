@@ -239,6 +239,7 @@ public sealed partial class VideoPreviewController
                         {
                             RequireRangeOwnerUnderLock(run, owner, token);
                             ThrowIfCommandObsoleteUnderLock(ready, operationRevision);
+                            ready.SeekPreviewState = null;
                             play = session.PlayAsync(token);
                         }
                         await play.ConfigureAwait(false);

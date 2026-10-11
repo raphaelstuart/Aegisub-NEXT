@@ -264,6 +264,7 @@ internal sealed partial class WorkbenchSession : IAsyncDisposable
         if (qualityChanged)
         {
             previewQualityRevision++;
+            Volatile.Write(ref previewState, CreatePreviewState());
             controller.InvalidatePreview();
         }
         ApplyPreferences();
@@ -674,7 +675,6 @@ internal sealed partial class WorkbenchSession : IAsyncDisposable
             var identity = update.Frame is { } presentedFrame ? previewFrames.FindIdentity(presentedFrame) : null;
             if (identity is not null && identity.QualityRevision != previewQualityRevision)
             {
-                Tick();
                 return;
             }
             if (update.ClearFrame)
@@ -692,14 +692,24 @@ internal sealed partial class WorkbenchSession : IAsyncDisposable
             PreviewUpdated?.Invoke(this, presented);
             if (update.Frame is not null)
             {
-                InteractionDiagnostics.Record("delivered", update.Snapshot.PresentedFrameTime, update.Snapshot.PresentedFrameEnd);
+                InteractionDiagnostics.Record(update.IsTransientPreview ? "cached-delivered" : "delivered",
+                    update.IsTransientPreview ? update.SourceFrameTime : update.Snapshot.PresentedFrameTime,
+                    update.IsTransientPreview ? update.SourceFrameEnd : update.Snapshot.PresentedFrameEnd);
             }
-            Tick();
+            if (playback.IsInteractive)
+            {
+                playback.RequestRefresh();
+            }
+            else
+            {
+                Tick();
+            }
         }
     }
 
     internal void Tick()
     {
+        InteractionDiagnostics.Record("refresh");
         RefreshAudioClockStatus();
         var snapshot = controller.Snapshot;
         RefreshPreviewDecodeSessionInfo(snapshot.DecodeSessionInfo);

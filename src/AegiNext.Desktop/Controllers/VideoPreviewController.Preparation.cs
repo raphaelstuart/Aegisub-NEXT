@@ -1,6 +1,7 @@
 using AegiNext.Core.Timing;
 using AegiNext.Media.Playback;
 using AegiNext.Media.Preview;
+using AegiNext.Desktop.Rendering;
 
 namespace AegiNext.Desktop.Controllers;
 
@@ -57,8 +58,15 @@ public sealed partial class VideoPreviewController
                 }
 
                 VideoPreviewDelivery identity;
+                ProjectPreviewState? seekState;
                 lock (gate)
                 {
+                    seekState = run.SeekPreviewGeneration == presentation.Generation && session.Snapshot.State != VideoPlaybackState.PLAYING
+                        ? run.SeekPreviewState : null;
+                    if (seekState is not null && run.SeekPreviewRevision != revision)
+                    {
+                        continue;
+                    }
                     identity = new(session, presentation.Generation, revision,
                         presentation.PositionedFrame.Time, presentation.PositionedFrame.NextFrameTime,
                         run.PreparationCancellation.Token);
@@ -83,12 +91,18 @@ public sealed partial class VideoPreviewController
                         continue;
                     }
                     run.ConversionCancellation = conversion;
+                    if (seekState is not null && ReferenceEquals(run.SeekPreviewState, seekState))
+                    {
+                        run.SeekPreviewState = null;
+                    }
                 }
                 try
                 {
                     var started = session.TimeProvider.GetTimestamp();
                     var frame = await conversionWorker.ExecuteAsync(
-                        () => converter.Convert(presentation.PositionedFrame.Frame, conversion.Token), conversion.Token).ConfigureAwait(false);
+                        () => seekState is not null && converter is ICachedVideoPreviewConverter cached
+                            ? cached.Convert(presentation.PositionedFrame, seekState, conversion.Token)
+                            : converter.Convert(presentation.PositionedFrame, conversion.Token), conversion.Token).ConfigureAwait(false);
                     var elapsed = MediaTime.FromTimeSpan(session.TimeProvider.GetElapsedTime(started));
                     PreparedVideoPreview prepared;
                     bool catchup;

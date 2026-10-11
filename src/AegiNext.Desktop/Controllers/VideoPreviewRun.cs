@@ -1,6 +1,7 @@
 using AegiNext.Core.Timing;
 using AegiNext.Media.Audio;
 using AegiNext.Media.Playback;
+using AegiNext.Desktop.Rendering;
 
 namespace AegiNext.Desktop.Controllers;
 
@@ -33,6 +34,12 @@ internal sealed class VideoPreviewRun : IDisposable
     internal MediaTime? PresentedAtPosition { get; set; }
     internal long? PresentedGeneration { get; set; }
     internal long? PresentedRevision { get; set; }
+    internal ICachedVideoPreviewConverter? CachedConverter { get; set; }
+    internal SynchronousMediaWorker? ConversionWorker { get; set; }
+    internal Task CachedPreviewOperation { get; set; } = Task.CompletedTask;
+    internal ProjectPreviewState? SeekPreviewState { get; set; }
+    internal long SeekPreviewGeneration { get; set; }
+    internal long SeekPreviewRevision { get; set; }
     internal CancellationTokenSource? ConversionCancellation { get; set; }
     internal CancellationTokenSource PreparationCancellation { get; set; }
     internal SemaphoreSlim PreparedSlots { get; } = new(2, 2);

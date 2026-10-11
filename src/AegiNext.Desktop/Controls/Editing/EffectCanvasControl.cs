@@ -843,7 +843,7 @@ public sealed partial class EffectCanvasControl : Control, IDisposable, IWorkben
             return false;
         }
 
-        if (compositeInteractive && !playbackActive)
+        if (!playbackActive)
         {
             return compositeTime == position;
         }

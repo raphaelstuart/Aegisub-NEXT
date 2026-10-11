@@ -106,6 +106,7 @@ public sealed class VideoPreviewDecodeModeTests
             }, () => Interlocked.Increment(ref converterCount) == 2 ? failedConverter : new PreviewTestConverter(),
             Dispatch, updates.Enqueue);
         await controller.OpenAsync("failure.mp4");
+        await Eventually(() => controller.Snapshot.PresentedGeneration is not null);
         await controller.SeekAsync(new(150, 1000));
 
         var failure = await Assert.ThrowsAsync<NotSupportedException>(
@@ -202,6 +203,7 @@ public sealed class VideoPreviewDecodeModeTests
         try
         {
             await controller.OpenAsync("old.mp4");
+            await Eventually(() => controller.Snapshot.PresentedGeneration is not null);
             await controller.SeekAsync(new(150, 1000));
             var switching = controller.SwitchDecodeModeAsync(VideoDecodeMode.Hardware);
             await blocked.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -233,6 +235,7 @@ public sealed class VideoPreviewDecodeModeTests
         try
         {
             await controller.OpenAsync("cancelled.mp4");
+            await Eventually(() => controller.Snapshot.PresentedGeneration is not null);
             await controller.SeekAsync(new(150, 1000));
             using var cancellation = new CancellationTokenSource();
             var switching = controller.SwitchDecodeModeAsync(VideoDecodeMode.Hardware, cancellation.Token);

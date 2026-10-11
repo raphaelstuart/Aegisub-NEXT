@@ -3,6 +3,7 @@ using AegiNext.Media.Audio;
 using AegiNext.Media.Decoding;
 using AegiNext.Media.Playback;
 using AegiNext.Media.Preview;
+using AegiNext.Desktop.Rendering;
 
 namespace AegiNext.Desktop.Controllers;
 
@@ -605,6 +606,7 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
             lock (gate)
             {
                 ThrowIfCommandObsoleteUnderLock(run, operationRevision);
+                run.SeekPreviewState = null;
                 playback = session.PlayAsync();
             }
 
@@ -759,6 +761,11 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
             var converter = await conversionWorker.ExecuteAsync(converterFactory, run.Token).ConfigureAwait(false);
             try
             {
+                lock (gate)
+                {
+                    run.CachedConverter = converter as ICachedVideoPreviewConverter;
+                    run.ConversionWorker = conversionWorker;
+                }
                 using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(run.Token);
                 var preparation = Task.Run(() => CancelCompanionOnExitAsync(
                     () => PrepareFramesAsync(run, session, converter, conversionWorker, cancellation.Token), cancellation), CancellationToken.None);
@@ -768,7 +775,21 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
             }
             finally
             {
-                await conversionWorker.ExecuteAsync(converter.Dispose).ConfigureAwait(false);
+                Task cachedPreview;
+                lock (gate)
+                {
+                    run.CachedConverter = null;
+                    run.ConversionWorker = null;
+                    cachedPreview = run.CachedPreviewOperation;
+                }
+                try
+                {
+                    await cachedPreview.ConfigureAwait(false);
+                }
+                finally
+                {
+                    await conversionWorker.ExecuteAsync(converter.Dispose).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (run.Token.IsCancellationRequested)

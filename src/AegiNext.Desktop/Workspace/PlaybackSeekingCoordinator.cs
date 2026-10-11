@@ -17,6 +17,7 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
     private bool? transportResumePlayback;
     internal bool IsInteractive => interaction.IsActive;
     internal bool UsesInteractiveQuality => interaction.UsesInteractiveQuality;
+    internal void RequestRefresh() => refreshPending = true;
     internal bool IsPlaybackRequested => IsInteractive ? interaction.ResumePlayback :
         transportResumePlayback ?? controller.Snapshot.State == VideoPlaybackState.PLAYING;
 

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using AegiNext.Core.Timing;
 using AegiNext.Core.Projects;
 using AegiNext.Media.Decoding;
@@ -7,13 +9,14 @@ using AegiNext.Rendering.Fonts;
 using AegiNext.Desktop.Settings;
 using Avalonia.OpenGL;
 using Avalonia.Platform;
-using System.Diagnostics;
 
 namespace AegiNext.Desktop.Rendering;
 
-internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
+internal sealed class ProjectPreviewConverter : IVideoPreviewConverter, ICachedVideoPreviewConverter
 {
-    private readonly Dictionary<PreviewQuality, SdrVideoConverter> converters = [];
+    private readonly Dictionary<PreviewQuality, IVideoPreviewConverter> converters = [];
+    private readonly PreviewBackgroundCache backgroundCache = new();
+    private readonly Func<SdrPreviewOptions, IVideoPreviewConverter> createConverter;
     private readonly Func<ProjectPreviewState> getState;
     private readonly Action<Exception?> reportError;
     private readonly PreviewFrameCatalog? previewFrames;
@@ -26,58 +29,164 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
     private AegiNext.Core.Projects.ProjectDocument? failedDocument;
     private bool disposed;
     internal bool UsesGpu => graphics is not null;
+    internal PreviewBackgroundCacheStatistics BackgroundCacheStatistics => backgroundCache.Statistics;
     internal Action<string, long>? StageMeasured { get; set; }
 
     internal ProjectPreviewConverter(Func<ProjectPreviewState> getState, Action<Exception?>? reportError = null,
         PreviewFrameCatalog? previewFrames = null, Func<SystemFontCatalog?>? fontCatalog = null,
-        Func<IOpenGlTextureSharingRenderInterfaceContextFeature?>? getGraphics = null)
+        Func<IOpenGlTextureSharingRenderInterfaceContextFeature?>? getGraphics = null,
+        Func<SdrPreviewOptions, IVideoPreviewConverter>? createConverter = null)
     {
         this.getState = getState;
         this.reportError = reportError ?? (static _ => { });
         this.previewFrames = previewFrames;
         this.fontCatalog = fontCatalog;
         this.getGraphics = getGraphics;
+        this.createConverter = createConverter ?? (static options => new SdrVideoConverter(options));
     }
 
+    /// <inheritdoc />
     public SdrVideoFrame Convert(IVideoFrame frame, CancellationToken cancellationToken = default)
     {
-        var measured = StageMeasured;
-        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
+        var measure = StageMeasured;
+        var started = measure is null ? 0 : Stopwatch.GetTimestamp();
         try
         {
-            return ConvertCore(frame, cancellationToken);
+            ArgumentNullException.ThrowIfNull(frame);
+            var timestamp = frame.Info.DisplayTiming?.Timestamp ?? frame.Info.PresentationTimestamp ?? frame.Info.BestEffortTimestamp
+                ?? throw new InvalidDataException("视频帧缺少显示时间。");
+            return ConvertFrame(frame, timestamp.ToMediaTime(), null, false, false, CaptureState(), cancellationToken);
         }
         finally
         {
-            measured?.Invoke("ConvertAndCompose", Stopwatch.GetTimestamp() - started);
+            measure?.Invoke("ConvertAndCompose", Stopwatch.GetTimestamp() - started);
         }
     }
 
-    private SdrVideoFrame ConvertCore(IVideoFrame frame, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public SdrVideoFrame Convert(PositionedVideoFrame frame, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        var state = getState();
-        var quality = PreviewQualityOptions.GetEffectiveQuality(state.Quality, state.IsInteractive);
-        if (!converters.TryGetValue(quality, out var activeConverter))
-        {
-            activeConverter = new(PreviewQualityOptions.Get(quality));
-            converters.Add(quality, activeConverter);
-        }
-        SdrVideoFrame background;
-        var measured = StageMeasured;
-        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
+        return Convert(frame, CaptureState(), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public SdrVideoFrame Convert(PositionedVideoFrame frame, ProjectPreviewState state,
+        CancellationToken cancellationToken = default)
+    {
+        var measure = StageMeasured;
+        var started = measure is null ? 0 : Stopwatch.GetTimestamp();
         try
         {
-            background = activeConverter.Convert(frame, cancellationToken);
+            ArgumentNullException.ThrowIfNull(frame);
+            ArgumentNullException.ThrowIfNull(state);
+            return ConvertFrame(frame.Frame, frame.Time, frame.NextFrameTime, frame.ReachedEnd, true, state, cancellationToken);
         }
         finally
         {
-            measured?.Invoke("BackgroundConversion", Stopwatch.GetTimestamp() - started);
+            measure?.Invoke("ConvertAndCompose", Stopwatch.GetTimestamp() - started);
         }
+    }
+
+    /// <inheritdoc />
+    public ProjectPreviewState CaptureState()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return getState();
+    }
+
+    /// <inheritdoc />
+    public bool HasCachedFrame(MediaTime mediaTarget, MediaTime maximumDistance, ProjectPreviewState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return !Volatile.Read(ref disposed) && state.IsInteractive && backgroundCache.Contains(mediaTarget, maximumDistance,
+            PreviewQualityOptions.Get(state.Quality, state.IsInteractive));
+    }
+
+    /// <inheritdoc />
+    public bool TryConvertCached(MediaTime mediaTarget, MediaTime maximumDistance, ProjectPreviewState state,
+        CancellationToken cancellationToken, [NotNullWhen(true)] out CachedVideoPreviewFrame? result)
+    {
+        var measure = StageMeasured;
+        var started = measure is null ? 0 : Stopwatch.GetTimestamp();
+        try
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            ArgumentNullException.ThrowIfNull(state);
+            cancellationToken.ThrowIfCancellationRequested();
+            result = null;
+            if (!state.IsInteractive || !backgroundCache.TryFind(mediaTarget, maximumDistance,
+                PreviewQualityOptions.Get(state.Quality, state.IsInteractive), out var entry, out var approximate))
+            {
+                return false;
+            }
+
+            var time = state.TargetTime ?? mediaTarget - (state.Document.Media?.MediaOrigin ?? MediaTime.Zero);
+            var frame = ComposeBackground(entry.Background, state, time, cancellationToken);
+            result = new(frame, entry.Time, entry.NextFrameTime, entry.ReachedEnd, approximate);
+            return true;
+        }
+        finally
+        {
+            measure?.Invoke("CachedConvertAndCompose", Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private SdrVideoFrame ConvertFrame(IVideoFrame frame, MediaTime sourceTime, MediaTime? nextFrameTime,
+        bool reachedEnd, bool hasPosition, ProjectPreviewState state, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        var quality = PreviewQualityOptions.GetEffectiveQuality(state.Quality, state.IsInteractive);
+        var options = PreviewQualityOptions.Get(quality);
+        if (!backgroundCache.TryGet(frame.Info, options, out var background))
+        {
+            if (!converters.TryGetValue(quality, out var activeConverter))
+            {
+                activeConverter = createConverter(options);
+                converters.Add(quality, activeConverter);
+            }
+            var measure = StageMeasured;
+            var started = measure is null ? 0 : Stopwatch.GetTimestamp();
+            try
+            {
+                background = activeConverter.Convert(frame, cancellationToken);
+            }
+            finally
+            {
+                measure?.Invoke("BackgroundConversion", Stopwatch.GetTimestamp() - started);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            backgroundCache.Add(frame.Info, options, background, sourceTime, nextFrameTime, reachedEnd);
+        }
+        else if (hasPosition)
+        {
+            backgroundCache.Add(frame.Info, options, background, sourceTime, nextFrameTime, reachedEnd);
+        }
+        var time = (state.IsInteractive || state.EvaluateAtTarget) && state.TargetTime is { } target ? target :
+            sourceTime - (state.Document.Media?.MediaOrigin ?? MediaTime.Zero);
+        return ComposeBackground(background, state, time, cancellationToken);
+    }
+
+    private SdrVideoFrame ComposeBackground(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
+        CancellationToken cancellationToken)
+    {
+        var measure = StageMeasured;
+        var started = measure is null ? 0 : Stopwatch.GetTimestamp();
+        try
+        {
+            return ComposeBackgroundCore(background, state, time, cancellationToken);
+        }
+        finally
+        {
+            measure?.Invoke("Compose", Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private SdrVideoFrame ComposeBackgroundCore(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var document = state.Document;
-        var timestamp = frame.Info.PresentationTimestamp ?? frame.Info.BestEffortTimestamp
-            ?? throw new InvalidDataException("视频帧缺少显示时间。");
-        var time = state.IsInteractive && state.TargetTime is { } target ? target : timestamp.ToMediaTime() - (document.Media?.MediaOrigin ?? MediaTime.Zero);
         if (ReferenceEquals(document, failedDocument))
         {
             return CompleteFrame(background, background, state, time);
@@ -118,21 +227,6 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
     private SdrVideoFrame ComposeFrame(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
         CancellationToken cancellationToken)
     {
-        var measured = StageMeasured;
-        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
-        try
-        {
-            return ComposeFrameCore(background, state, time, cancellationToken);
-        }
-        finally
-        {
-            measured?.Invoke("Compose", Stopwatch.GetTimestamp() - started);
-        }
-    }
-
-    private SdrVideoFrame ComposeFrameCore(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
-        CancellationToken cancellationToken)
-    {
         using var current = graphics?.MakeCurrent();
         if (renderer is null || directory != state.Directory)
         {
@@ -164,7 +258,7 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
     {
         ArgumentNullException.ThrowIfNull(frame);
         var background = previewFrames?.FindBackground(frame);
-        return frame.Pixels.Length + (background is not null && !ReferenceEquals(background, frame) ? (long)background.Pixels.Length : 0);
+        return frame.Pixels.Length + (background is not null && !background.Pixels.Equals(frame.Pixels) ? (long)background.Pixels.Length : 0);
     }
 
     internal static (int Width, int Height) GetPreviewSize(ProjectDocument document, int width, int height)
@@ -176,11 +270,14 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
 
     private SdrVideoFrame CompleteFrame(SdrVideoFrame presented, SdrVideoFrame background, ProjectPreviewState state, MediaTime time)
     {
-        previewFrames?.Register(presented, background, ReferenceEquals(state.Document, failedDocument) ? null : state.Document,
+        var delivered = presented.CreateView();
+        previewFrames?.Register(delivered, ReferenceEquals(presented, background) ? delivered : background,
+            ReferenceEquals(state.Document, failedDocument) ? null : state.Document,
             time, state.IsInteractive, state.QualityRevision);
-        return presented;
+        return delivered;
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         if (disposed)
@@ -188,6 +285,7 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
             return;
         }
         disposed = true;
+        backgroundCache.Clear();
         try
         {
             DisposeRenderer();

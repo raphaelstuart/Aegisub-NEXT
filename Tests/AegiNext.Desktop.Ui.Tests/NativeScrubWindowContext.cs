@@ -97,8 +97,9 @@ internal sealed class NativeScrubWindowContext : IAsyncDisposable
     {
         if (update.Frame is { } frame)
         {
-            LastPresentedIdentity = Window.Session.PreviewFrames.FindIdentity(frame);
+            var identity = Window.Session.PreviewFrames.FindIdentity(frame);
+            LastPresentedIdentity = update.IsTransientPreview ? null : identity;
+            metrics.RecordPresentation(update, identity);
         }
-        metrics.RecordPresentation(update, LastPresentedIdentity);
     }
 }

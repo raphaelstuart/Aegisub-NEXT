@@ -163,6 +163,7 @@ public sealed partial class VideoPreviewController
             lock (gate)
             {
                 RequireAudioOutputChangeUnderLock(run, operationRevision, token);
+                run.SeekPreviewState = null;
                 play = session.PlayAsync(token);
             }
             await play.ConfigureAwait(false);

@@ -13,4 +13,8 @@ public sealed record VideoPreviewUpdate(VideoPreviewSnapshot Snapshot, SdrVideoF
     public ProjectDocument? CompositionDocument { get; init; }
     public MediaTime? CompositionTime { get; init; }
     public bool IsInteractiveComposition { get; init; }
+    public bool IsTransientPreview { get; init; }
+    public MediaTime? SourceFrameTime { get; init; }
+    public MediaTime? SourceFrameEnd { get; init; }
+    public MediaTime? RequestedPosition { get; init; }
 }
