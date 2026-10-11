@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using AegiNext.Desktop.Updates;
 
 namespace AegiNext.Desktop.Views;
 
@@ -9,7 +10,7 @@ internal sealed class AboutViewModel
     {
         var assembly = typeof(AboutViewModel).Assembly;
         ProductName = assembly.GetCustomAttribute<AssemblyProductAttribute>()!.Product;
-        Version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+        Version = ApplicationVersion.Current;
         CopyrightNotice = string.Create(CultureInfo.InvariantCulture, $"Copyright © {DateTime.Now.Year} yosymph.org.");
     }
 

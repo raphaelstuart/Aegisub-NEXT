@@ -11,6 +11,7 @@ using AegiNext.Application.Tasks;
 using AegiNext.Desktop.Settings;
 using AegiNext.Desktop.Settings.AudioAnalysis;
 using AegiNext.Desktop.Settings.Transfer;
+using AegiNext.Desktop.Updates;
 using AegiNext.Desktop.Workspace;
 using AegiNext.Media.Analysis;
 using AegiNext.Rendering.Fonts;
@@ -26,6 +27,7 @@ internal sealed class DesktopApplicationContext : IAsyncDisposable
     private readonly SubtitleFontSelectionService fonts;
     private readonly FontNamePreviewCache fontNamePreviews;
     private readonly WorkbenchPreferences? initialPreferences;
+    private readonly HttpClient updateHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private WorkbenchPreferences preferences;
     private Task? disposeTask;
     private int queuedStyles;
@@ -37,13 +39,15 @@ internal sealed class DesktopApplicationContext : IAsyncDisposable
     private readonly Dictionary<PersonalLibraryKind, Exception> libraryLoadErrors = [];
 
     internal DesktopApplicationContext(WorkbenchPreferencesStore? preferencesStore = null,
-        WorkbenchPreferences? initialPreferences = null, SubtitleFontSelectionService? fontSelectionService = null)
+        WorkbenchPreferences? initialPreferences = null, SubtitleFontSelectionService? fontSelectionService = null,
+        IUpdateReleaseSource? updateReleaseSource = null)
     {
         PreferencesStore = preferencesStore ?? new(Environment.GetEnvironmentVariable("AEGINEXT_PREFERENCES_DIRECTORY"));
         this.initialPreferences = initialPreferences;
         preferences = initialPreferences ?? new();
         Tasks = new();
         Tasks.MaximumConcurrentTasks = preferences.MaximumConcurrentTasks;
+        Updates = new(Tasks, updateReleaseSource ?? new GitHubReleaseSource(updateHttpClient), ApplicationVersion.Current);
         fonts = fontSelectionService ?? new(Tasks);
         fontNamePreviews = new(Path.Combine(PreferencesStore.DirectoryPath, "caches", "fonts", "v1"),
             new SystemFontNamePreviewRenderer(() => fonts.Catalog));
@@ -81,6 +85,7 @@ internal sealed class DesktopApplicationContext : IAsyncDisposable
     internal UserSettingsRestoreService SettingsRestore { get; }
     internal RecentProjectService RecentProjects { get; }
     internal AegiTaskService Tasks { get; }
+    internal UpdateCheckService Updates { get; }
     internal AudioAnalysisWorkerBudget AudioAnalysisBudget { get; }
     internal SubtitleFontSelectionService Fonts => fonts;
     internal IReadOnlyCollection<AegiTaskResource> SettingsResources =>
@@ -510,6 +515,8 @@ internal sealed class DesktopApplicationContext : IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
+        await Updates.DisposeAsync();
+        updateHttpClient.Dispose();
         await fontNamePreviews.DisposeAsync();
         foreach (var task in Tasks.GetSnapshots().Where(value => !value.IsFinished && value.CanCancel))
         {

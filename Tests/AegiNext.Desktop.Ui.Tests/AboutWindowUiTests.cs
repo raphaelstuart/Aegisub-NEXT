@@ -60,9 +60,9 @@ public sealed class AboutWindowUiTests
         var main = context.Window;
         var menu = Assert.IsType<NativeMenu>(NativeMenu.GetMenu(main));
         var help = Assert.Single(menu.Items.OfType<NativeMenuItem>(), item => item.Header == "Help");
-        var about = Assert.IsType<NativeMenuItem>(Assert.Single(help.Menu!.Items));
-        Assert.Equal("About", about.Header);
         var command = main.GetCommand(WorkbenchCommand.OPEN_ABOUT);
+        var about = Assert.Single(help.Menu!.Items.OfType<NativeMenuItem>(), item => ReferenceEquals(item.Command, command));
+        Assert.Equal("About", about.Header);
         Assert.Same(command, about.Command);
         Assert.True(command.CanExecute(null));
 
@@ -113,7 +113,9 @@ public sealed class AboutWindowUiTests
                 Assert.Equal("关闭", UiTestActions.Find<Button>(window, "AboutCloseButton").Content);
                 var root = Assert.IsType<NativeMenu>(NativeMenu.GetMenu(context.Window));
                 var help = Assert.Single(root.Items.OfType<NativeMenuItem>(), item => item.Header == "帮助");
-                Assert.Equal("关于", Assert.IsType<NativeMenuItem>(Assert.Single(help.Menu!.Items)).Header);
+                var aboutCommand = context.Window.GetCommand(WorkbenchCommand.OPEN_ABOUT);
+                var aboutItem = Assert.Single(help.Menu!.Items.OfType<NativeMenuItem>(), item => ReferenceEquals(item.Command, aboutCommand));
+                Assert.Equal("关于", aboutItem.Header);
                 foreach (var name in new[] { "AboutApplicationIcon", "AboutProductName", "AboutVersion", "AboutCopyright", "AboutLicense", "AboutCloseButton" })
                 {
                     var control = UiTestActions.Find<Control>(window, name);

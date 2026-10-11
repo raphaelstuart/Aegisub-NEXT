@@ -64,6 +64,7 @@ internal static class WorkbenchIcon
             "Settings" or "OPEN_SETTINGS" or "ManageStyles" => MaterialIconKind.Cog,
             "Help" => MaterialIconKind.HelpCircleOutline,
             "OPEN_ABOUT" => MaterialIconKind.InformationOutline,
+            "CHECK_UPDATES" => MaterialIconKind.Update,
             "Play" or "PLAY_PAUSE" or "Playback" => MaterialIconKind.Play,
             "Pause" => MaterialIconKind.Pause,
             "Loop" => MaterialIconKind.Repeat,

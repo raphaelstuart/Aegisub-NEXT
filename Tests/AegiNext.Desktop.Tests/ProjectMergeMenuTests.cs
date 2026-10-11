@@ -22,12 +22,12 @@ public sealed class ProjectMergeMenuTests
     public void PreviousBindingsRetainCustomGesturesAndGainAnUnboundMergeCommand()
     {
         var previous = ShortcutDefaults.CreateBindings()
-            .Where(binding => binding.Command != WorkbenchCommand.MERGE_PROJECT)
+            .Where(binding => binding.Command <= WorkbenchCommand.APPLY_TIMING_POST_PROCESSOR)
             .Select(binding => binding.Command == WorkbenchCommand.OPEN_PROJECT
                 ? binding with { Gesture = "CmdOrCtrl+Alt+O" } : binding).ToImmutableArray();
         var upgraded = WorkbenchPreferencesMigration.Upgrade(new() { ShortcutBindings = previous });
         upgraded.Validate();
-        Assert.Equal(previous, upgraded.ShortcutBindings.Where(binding => binding.Command != WorkbenchCommand.MERGE_PROJECT));
+        Assert.Equal(previous, upgraded.ShortcutBindings.Where(binding => binding.Command <= WorkbenchCommand.APPLY_TIMING_POST_PROCESSOR));
         Assert.Equal(string.Empty, upgraded.ShortcutBindings.Single(binding => binding.Command == WorkbenchCommand.MERGE_PROJECT).Gesture);
     }
 

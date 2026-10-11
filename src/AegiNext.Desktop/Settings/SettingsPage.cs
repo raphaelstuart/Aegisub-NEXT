@@ -16,5 +16,6 @@ public enum SettingsPage
     TRANSFER,
     TASKS,
     AUDIO_ANALYSIS,
-    SUBTITLE_COLOR_TAGS
+    SUBTITLE_COLOR_TAGS,
+    UPDATES
 }

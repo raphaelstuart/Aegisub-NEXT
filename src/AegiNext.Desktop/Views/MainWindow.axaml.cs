@@ -18,6 +18,7 @@ using AegiNext.Desktop.Panels.Export;
 using AegiNext.Desktop.Panels.Log;
 using AegiNext.Desktop.Settings;
 using AegiNext.Desktop.Shortcuts;
+using AegiNext.Desktop.Updates;
 using AegiNext.Desktop.Windowing;
 using AegiNext.Desktop.Workspace;
 using Avalonia;
@@ -47,6 +48,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private Task? disposeTask;
     private Task? closeOperation;
     private readonly SettingsWindowCoordinator settingsCoordinator;
+    private readonly UpdateWindowCoordinator updates;
+    private readonly bool ownsUpdates;
     private SettingsWindow? settingsWindow => settingsCoordinator.Window;
 
     /// <summary>通过显式组合根创建唯一工作台会话和固定长生命周期面板。</summary>
@@ -59,12 +62,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
     }
 
-    internal MainWindow(WorkbenchSession preparedSession) : this(null, preparedSession)
+    internal MainWindow(WorkbenchSession preparedSession, UpdateWindowCoordinator? updates = null) : this(null, preparedSession, updates)
     {
     }
 
     private MainWindow(Func<Action<VideoPreviewUpdate>, VideoPreviewController>? controllerFactory,
-        WorkbenchSession? preparedSession)
+        WorkbenchSession? preparedSession, UpdateWindowCoordinator? updates = null)
     {
         if (preparedSession is not null &&
             (preparedSession.ProjectPath is not { } projectPath || !File.Exists(projectPath)))
@@ -97,6 +100,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             includeApplicationMenu: preparedSession is null);
         windowRegistry.Register(this, () => ViewModel.Title, this.FindControl<WindowTitleBar>("TitleBar")!,
             WorkbenchWindowRole.MAIN);
+        ownsUpdates = updates is null;
+        this.updates = updates ?? new(Session.ApplicationContext.Updates, () => Session.Preferences);
+        if (ownsUpdates)
+        {
+            Opened += OnUpdateOwnerOpened;
+        }
         layouts = new(this, panels, Session.PreferencesStore.DirectoryPath, ViewModel.TryCommitDrafts,
             ViewModel.CancelGestures, RegisterWorkspaceWindow, Session.ApplicationContext.Tasks,
             Session.ApplicationContext.InitialLayout);
@@ -229,6 +238,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
+        Opened -= OnUpdateOwnerOpened;
+        updates.ReleaseOwner(this);
+        if (ownsUpdates)
+        {
+            updates.Dispose();
+        }
         DisposeTaskCenter();
         ViewModel.Log.PropertyChanged -= OnLogChanged;
         workspaceHost.IsEnabled = false;
@@ -273,6 +288,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void OnFocusCommandContextChanged(object? sender, EventArgs e) =>
         ((IAsyncRelayCommand)ViewModel.GetCommand(WorkbenchCommand.MERGE_SUBTITLE)).NotifyCanExecuteChanged();
 
+    private void OnUpdateOwnerOpened(object? sender, EventArgs e) => updates.SetOwner(this, RegisterAuxiliaryWindow);
+
     private void RegisterAuxiliaryWindow(Window window)
     {
         windowRegistry.RegisterAuxiliary(window);
@@ -302,6 +319,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         else if (request.Command == WorkbenchCommand.OPEN_ABOUT)
         {
             OpenAbout();
+        }
+        else if (request.Command == WorkbenchCommand.CHECK_UPDATES)
+        {
+            await updates.CheckManuallyAsync();
         }
         else if (request.Command == WorkbenchCommand.OPEN_SUBTITLE_DETAILS)
         {

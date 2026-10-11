@@ -49,7 +49,7 @@ internal static class ShortcutSettingsSections
         ]);
         AddSection("Settings.ShortcutSectionApplication",
         [
-            WorkbenchCommand.OPEN_SETTINGS, WorkbenchCommand.OPEN_ABOUT, WorkbenchCommand.EXIT
+            WorkbenchCommand.OPEN_SETTINGS, WorkbenchCommand.CHECK_UPDATES, WorkbenchCommand.OPEN_ABOUT, WorkbenchCommand.EXIT
         ]);
         if (remaining.Count != 0)
         {

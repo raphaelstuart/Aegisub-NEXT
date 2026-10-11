@@ -14,6 +14,7 @@ using AegiNext.Desktop.Settings.TimingPostProcessor;
 using AegiNext.Desktop.Settings.Transfer;
 using AegiNext.Desktop.Settings.Tasks;
 using AegiNext.Desktop.Settings.AudioAnalysis;
+using AegiNext.Desktop.Settings.Updates;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AegiNext.Desktop.Settings;
@@ -48,6 +49,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
         TimingPostProcessor = new(preferences);
         Tasks = new(preferences);
         AudioAnalysis = new(preferences);
+        Updates = new(preferences);
         Shortcuts.PropertyChanged += PageModelChanged;
         Styles.PropertyChanged += PageModelChanged;
         Effects.PropertyChanged += PageModelChanged;
@@ -75,6 +77,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
     public TimingPostProcessorSettingsViewModel TimingPostProcessor { get; }
     public TaskSettingsViewModel Tasks { get; }
     public AudioAnalysisSettingsViewModel AudioAnalysis { get; }
+    public UpdateSettingsViewModel Updates { get; }
     public string Title => title;
 
     public SettingsPage CurrentPage
@@ -97,6 +100,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
     public bool IsTransferVisible => CurrentPage == SettingsPage.TRANSFER;
     public bool IsTasksVisible => CurrentPage == SettingsPage.TASKS;
     public bool IsAudioAnalysisVisible => CurrentPage == SettingsPage.AUDIO_ANALYSIS;
+    public bool IsUpdatesVisible => CurrentPage == SettingsPage.UPDATES;
 
     public string PageTitle => Localization.Get("Settings." + (CurrentPage switch
     {
@@ -113,6 +117,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
         SettingsPage.TRANSFER => "Transfer",
         SettingsPage.TASKS => "Tasks",
         SettingsPage.AUDIO_ANALYSIS => "AudioAnalysis",
+        SettingsPage.UPDATES => "Updates",
         _ => "Appearance"
     }));
 
@@ -228,6 +233,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
             OnPropertyChanged(nameof(IsTransferVisible));
             OnPropertyChanged(nameof(IsTasksVisible));
             OnPropertyChanged(nameof(IsAudioAnalysisVisible));
+            OnPropertyChanged(nameof(IsUpdatesVisible));
             OnPropertyChanged(nameof(PageTitle));
             RefreshError();
         }
@@ -258,6 +264,7 @@ public sealed class SettingsWindowViewModel : ObservableObject
         TimingPostProcessor.RefreshLanguage();
         Tasks.RefreshLanguage();
         AudioAnalysis.RefreshLanguage();
+        Updates.RefreshLanguage();
         title = Localization.Get("Settings.Settings");
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(PageTitle));

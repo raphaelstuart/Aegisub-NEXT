@@ -53,7 +53,8 @@ public sealed class ClipBoundaryShortcutPreferencesTests
 
         Assert.Null(store.LoadError);
         Assert.Equal(previous.AsEnumerable(), restored.ShortcutBindings.Take(previous.Length));
-        var additions = restored.ShortcutBindings.Skip(previous.Length).ToArray();
+        var additions = restored.ShortcutBindings.Skip(previous.Length)
+            .Where(binding => binding.Command <= WorkbenchCommand.SEEK_CLIP_END).ToArray();
         Assert.Equal(2, additions.Length);
         Assert.Equal("SEEK_CLIP_START", additions[0].Command.ToString());
         Assert.Equal("SEEK_CLIP_END", additions[1].Command.ToString());

@@ -15,6 +15,7 @@ using AegiNext.Desktop.Settings.Presets;
 using AegiNext.Desktop.Settings.Preview;
 using AegiNext.Desktop.Settings.Tasks;
 using AegiNext.Desktop.Settings.AudioAnalysis;
+using AegiNext.Desktop.Settings.Updates;
 using AegiNext.Desktop.Settings.TimingPostProcessor;
 using AegiNext.Desktop.Settings.Transfer;
 using AegiNext.Desktop.Startup;
@@ -171,6 +172,7 @@ internal sealed class SettingsWindowCoordinator(DesktopApplicationContext applic
         window.ProjectsChanged += OnProjectsChanged;
         window.PreviewChanged += OnPreviewChanged;
         window.TasksChanged += OnTasksChanged;
+        window.UpdatesChanged += OnUpdatesChanged;
         window.AudioAnalysisChanged += OnAudioAnalysisChanged;
         window.AudioAnalysisRebuildRequested += OnAudioAnalysisRebuildRequested;
         window.TimingPreferencesChanged += OnTimingPreferencesChanged;
@@ -222,6 +224,7 @@ internal sealed class SettingsWindowCoordinator(DesktopApplicationContext applic
         window.ProjectsChanged -= OnProjectsChanged;
         window.PreviewChanged -= OnPreviewChanged;
         window.TasksChanged -= OnTasksChanged;
+        window.UpdatesChanged -= OnUpdatesChanged;
         window.AudioAnalysisChanged -= OnAudioAnalysisChanged;
         window.AudioAnalysisRebuildRequested -= OnAudioAnalysisRebuildRequested;
         window.TimingPreferencesChanged -= OnTimingPreferencesChanged;
@@ -412,6 +415,11 @@ internal sealed class SettingsWindowCoordinator(DesktopApplicationContext applic
     private void OnTasksChanged(object? sender, TaskSettingsChangedEventArgs e)
     {
         UpdatePreferences(value => value with { MaximumConcurrentTasks = e.MaximumConcurrentTasks });
+    }
+
+    private void OnUpdatesChanged(object? sender, UpdateSettingsChangedEventArgs e)
+    {
+        UpdatePreferences(value => value with { AutoCheckUpdates = e.AutoCheckUpdates, UpdateChannel = e.UpdateChannel });
     }
 
     private void OnAudioAnalysisChanged(object? sender, AudioAnalysisPreferencesChangedEventArgs e)

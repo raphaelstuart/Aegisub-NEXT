@@ -15,7 +15,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task StartAfterAsynchronousInitializationShowsWelcomeWithoutFrameworkAutoShow()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         await using var application = new DesktopApplicationContext(new(environment.DirectoryPath));
         await application.Initialization;
         Window? active = null;
@@ -35,7 +35,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [InlineData(true)]
     public async Task CancellationAtCommittedProjectAcceptsPanelCloseButRespectsApplicationShutdown(bool shutdown)
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var request = new ProjectCreationRequest("Committed 中文", environment.DirectoryPath);
         var path = ProjectCreationService.GetProjectPath(request);
         DesktopStartupCoordinator? coordinator = null;
@@ -99,7 +99,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task NewProjectCreatesItsNamedDirectoryBeforeTransferringToOneWorkbench()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         Window? active = null;
         var shutdownCount = 0;
         var request = new ProjectCreationRequest("New project", environment.DirectoryPath);
@@ -139,7 +139,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task FailedOpenPreservesWelcomeAndSharedSettingsThenSuccessfulRetryTransfers()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var path = Path.Combine(environment.DirectoryPath, "中文 123.aeginext");
         await File.WriteAllTextAsync(path, "invalid project", TestContext.Current.CancellationToken);
         var dialogs = new StartupTestDialogService { OpenPath = path };
@@ -167,7 +167,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task PickerCancellationAndRepeatedClicksDoNotCreateSessions()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var dialogs = new StartupTestDialogService
         {
             PendingSelection = new(TaskCreationOptions.RunContinuationsAsynchronously)
@@ -198,7 +198,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task ClosingDuringSelectionRejectsLateSuccessAndFlushesPreferences()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var path = Path.Combine(environment.DirectoryPath, "Late.aeginext");
         await ProjectStore.SaveAsync(new(), path, TestContext.Current.CancellationToken);
         var dialogs = new StartupTestDialogService
@@ -235,7 +235,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task FailedWindowPromotionReleasesTheCandidateAndAllowsRetry()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var rejectWorkbench = true;
         MainWindow? rejected = null;
         Window? active = null;
@@ -274,7 +274,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task CancelledNewProjectPanelDoesNotCreateASession()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var dialogs = new StartupTestDialogService
         {
             PendingNewProjectSelection = new(TaskCreationOptions.RunContinuationsAsynchronously)
@@ -316,7 +316,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task FailedNewProjectCreateKeepsWelcomeAndDisposesTheCandidateBeforeRetry()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var blocked = Path.Combine(environment.DirectoryPath, "Blocked");
         Directory.CreateDirectory(blocked);
         var dialogs = new StartupTestDialogService { NewProjectRequest = new("Blocked", environment.DirectoryPath) };
@@ -353,7 +353,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task ClosingWorkbenchReturnsToTheSameWelcomeAndReopensWithTheSameApplicationContext()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var request = new ProjectCreationRequest("Return", environment.DirectoryPath);
         var path = ProjectCreationService.GetProjectPath(request);
         var dialogs = new StartupTestDialogService { NewProjectRequest = request, OpenPath = path };
@@ -400,7 +400,7 @@ public sealed class DesktopStartupLifecycleUiTests
     [AvaloniaFact]
     public async Task ExplicitQuitRespectsCancelledUnsavedConfirmationAndThenShutsDownOnce()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var dialogs = new StartupTestDialogService
         {
             NewProjectRequest = new("Quit", environment.DirectoryPath),

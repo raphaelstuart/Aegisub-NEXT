@@ -13,10 +13,10 @@ internal sealed class WindowMenuBar : UserControl, IDisposable
     private readonly List<WindowMenuGroupProjection> projections = [];
     private double availableWidth = double.PositiveInfinity;
 
-    internal WindowMenuBar(WorkbenchMenuCatalog catalog)
+    internal WindowMenuBar(WorkbenchMenuCatalog catalog, IEnumerable<WorkbenchMenuGroup>? groups = null)
     {
         this.catalog = catalog;
-        foreach (var group in WorkbenchMenuCatalog.Groups)
+        foreach (var group in groups ?? WorkbenchMenuCatalog.Groups)
         {
             var main = new WindowMenuGroupProjection(group, catalog);
             var compact = new WindowMenuGroupProjection(group, catalog);

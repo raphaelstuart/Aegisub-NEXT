@@ -9,6 +9,10 @@ internal sealed partial class WorkbenchSession
 {
     internal bool CanExecuteCommand(WorkbenchCommand command)
     {
+        if (command == WorkbenchCommand.CHECK_UPDATES)
+        {
+            return !closing;
+        }
         if (closing || IsSwitchingAudioDevice || workflow.IsNewProjectDialogOpen || IsProjectBusy && command != WorkbenchCommand.VIEW_LOG &&
             !(command == WorkbenchCommand.TIMING_EXIT && pendingTimingEntry is not null && pendingTimingEnd is null))
         {
@@ -61,6 +65,12 @@ internal sealed partial class WorkbenchSession
     {
         if (!CanExecuteCommand(command))
         {
+            return;
+        }
+
+        if (command == WorkbenchCommand.CHECK_UPDATES)
+        {
+            await ViewModel.RequestHostCommandAsync(command);
             return;
         }
 

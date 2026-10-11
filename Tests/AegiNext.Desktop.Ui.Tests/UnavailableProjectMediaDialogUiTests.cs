@@ -148,7 +148,7 @@ public sealed class UnavailableProjectMediaDialogUiTests
     [InlineData(true)]
     public async Task WelcomeOpensOneOfflineWorkbenchOnlyWhenTheUserContinues(bool proceed)
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var path = Path.Combine(environment.DirectoryPath, "Missing media.aeginext");
         var asset = new ProjectAsset(Guid.NewGuid(), ProjectAssetKind.MEDIA, "missing.mkv");
         await ProjectStore.SaveAsync(new()
@@ -185,7 +185,7 @@ public sealed class UnavailableProjectMediaDialogUiTests
     [AvaloniaFact]
     public async Task ClosingWelcomeCancelsPendingMediaConfirmationAndRejectsLateContinue()
     {
-        using var environment = new UiTestEnvironment();
+        using var environment = new UiTestEnvironment(disableAutomaticUpdates: true);
         var path = Path.Combine(environment.DirectoryPath, "Pending media.aeginext");
         var asset = new ProjectAsset(Guid.NewGuid(), ProjectAssetKind.MEDIA, "missing.mkv");
         await ProjectStore.SaveAsync(new()

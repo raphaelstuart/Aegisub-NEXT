@@ -7,6 +7,7 @@ using AegiNext.Desktop.Settings.Projects;
 using AegiNext.Desktop.Settings.TimingPostProcessor;
 using AegiNext.Desktop.Settings.Media;
 using AegiNext.Desktop.Settings.AudioAnalysis;
+using AegiNext.Desktop.Updates;
 
 namespace AegiNext.Desktop.Settings;
 
@@ -28,6 +29,8 @@ public sealed record WorkbenchPreferences
     public VideoDecodeMode PreviewDecodeMode { get; init; } = VideoDecodeMode.Auto;
     public int SubtitleAuditionMilliseconds { get; init; } = 500;
     public int MaximumConcurrentTasks { get; init; } = 4;
+    public bool AutoCheckUpdates { get; init; } = true;
+    public UpdateChannel UpdateChannel { get; init; } = UpdateChannel.INCLUDE_PRERELEASE;
     public bool TimelineClassicTimingEnabled { get; init; }
     public bool TimelineSnapEnabled { get; init; } = true;
     public bool TimelineStepEnabled { get; init; }
@@ -42,7 +45,7 @@ public sealed record WorkbenchPreferences
     public void Validate()
     {
         if (Version != 1 || !IsValidLanguage(Language) ||
-            !Enum.IsDefined(Theme) || !Enum.IsDefined(PreviewQuality) || !Enum.IsDefined(PreviewDecodeMode) || !float.IsFinite(Volume) || Volume is < 0 or > 1 ||
+            !Enum.IsDefined(Theme) || !Enum.IsDefined(PreviewQuality) || !Enum.IsDefined(PreviewDecodeMode) || !Enum.IsDefined(UpdateChannel) || !float.IsFinite(Volume) || Volume is < 0 or > 1 ||
             SubtitleAuditionMilliseconds < 1 || MaximumConcurrentTasks is < 1 or > 32 || AccentColor is null || AccentColor.Length != 7 || AccentColor[0] != '#' ||
             AccentColor.AsSpan(1).ContainsAnyExcept(hexadecimalCharacters) || ShortcutBindings.IsDefault || AudioGraph is null || AudioAnalysis is null || TimelineClips is null || Projects is null || TimingPostProcessor is null)
         {
@@ -103,6 +106,7 @@ public sealed record WorkbenchPreferences
         return other is not null && Version == other.Version && Language == other.Language && Theme == other.Theme &&
                AccentColor == other.AccentColor && AudioGraph == other.AudioGraph && AudioAnalysis == other.AudioAnalysis && TimelineClips == other.TimelineClips && Volume.Equals(other.Volume) && WindowMenuOnMac == other.WindowMenuOnMac && PreviewQuality == other.PreviewQuality && PreviewDecodeMode == other.PreviewDecodeMode &&
                SubtitleAuditionMilliseconds == other.SubtitleAuditionMilliseconds && MaximumConcurrentTasks == other.MaximumConcurrentTasks && TimelineClassicTimingEnabled == other.TimelineClassicTimingEnabled &&
+               AutoCheckUpdates == other.AutoCheckUpdates && UpdateChannel == other.UpdateChannel &&
                TimelineSnapEnabled == other.TimelineSnapEnabled && TimelineStepEnabled == other.TimelineStepEnabled &&
                TimelineSpectrumVisible == other.TimelineSpectrumVisible && TimelineWaveformVisible == other.TimelineWaveformVisible &&
                CollapsedEffectCategories.AsSpan().SequenceEqual(other.CollapsedEffectCategories.AsSpan()) &&
@@ -128,6 +132,8 @@ public sealed record WorkbenchPreferences
         hash.Add(PreviewDecodeMode);
         hash.Add(SubtitleAuditionMilliseconds);
         hash.Add(MaximumConcurrentTasks);
+        hash.Add(AutoCheckUpdates);
+        hash.Add(UpdateChannel);
         hash.Add(TimelineClassicTimingEnabled);
         hash.Add(TimelineSnapEnabled);
         hash.Add(TimelineStepEnabled);

@@ -26,7 +26,7 @@ internal sealed class WorkbenchMenuCatalog(Func<WorkbenchCommand, ICommand> comm
         new("Subtitles", [WorkbenchCommand.TIMING_ENTER, WorkbenchCommand.TIMING_EXIT, null,
             WorkbenchCommand.ADD_SUBTITLE, WorkbenchCommand.DELETE_SUBTITLE, WorkbenchCommand.SPLIT_SUBTITLE,
             WorkbenchCommand.MERGE_SUBTITLE, null, WorkbenchCommand.OPEN_SUBTITLE_DETAILS]),
-        new("Help", [WorkbenchCommand.OPEN_ABOUT])
+        new("Help", [WorkbenchCommand.CHECK_UPDATES, WorkbenchCommand.OPEN_ABOUT])
     ];
 
     private WorkbenchPreferences preferences = new();

@@ -72,6 +72,10 @@ dotnet_diagnostic.CA1707.severity = none
 # 设置枚举遵循项目 ALL_UPPER 命名。
 dotnet_diagnostic.CA1707.severity = none
 
+[src/AegiNext.Desktop/Updates/UpdateChannel.cs]
+# 更新渠道枚举遵循项目 ALL_UPPER 命名。
+dotnet_diagnostic.CA1707.severity = none
+
 [src/AegiNext.Desktop/Settings/TimingPostProcessor/TimingPostProcessorField.cs]
 # 草稿字段身份遵循项目 ALL_UPPER 命名。
 dotnet_diagnostic.CA1707.severity = none

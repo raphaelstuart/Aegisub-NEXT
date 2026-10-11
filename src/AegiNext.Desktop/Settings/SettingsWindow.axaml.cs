@@ -10,6 +10,7 @@ using AegiNext.Desktop.Settings.Preview;
 using AegiNext.Desktop.Settings.Tasks;
 using AegiNext.Desktop.Settings.AudioAnalysis;
 using AegiNext.Desktop.Settings.TimingPostProcessor;
+using AegiNext.Desktop.Settings.Updates;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
@@ -48,6 +49,7 @@ public sealed partial class SettingsWindow : Window
         viewModel.Projects.Changed += OnProjectsChanged;
         viewModel.Preview.Changed += OnPreviewChanged;
         viewModel.Tasks.Changed += OnTasksChanged;
+        viewModel.Updates.Changed += OnUpdatesChanged;
         viewModel.AudioAnalysis.Changed += OnAudioAnalysisChanged;
         viewModel.AudioAnalysis.RebuildRequested += OnAudioAnalysisRebuildRequested;
         viewModel.TimingPostProcessor.Changed += OnTimingPreferencesChanged;
@@ -78,6 +80,7 @@ public sealed partial class SettingsWindow : Window
     public event EventHandler<ProjectPreferencesChangedEventArgs>? ProjectsChanged;
     public event EventHandler<PreviewSettingsChangedEventArgs>? PreviewChanged;
     public event EventHandler<TaskSettingsChangedEventArgs>? TasksChanged;
+    public event EventHandler<UpdateSettingsChangedEventArgs>? UpdatesChanged;
     public event EventHandler<AudioAnalysisPreferencesChangedEventArgs>? AudioAnalysisChanged;
     public event EventHandler<AudioAnalysisRebuildRequestedEventArgs>? AudioAnalysisRebuildRequested;
     public event EventHandler<TimingPostProcessorPreferencesChangedEventArgs>? TimingPreferencesChanged;
@@ -127,6 +130,7 @@ public sealed partial class SettingsWindow : Window
         ViewModel.Projects.UpdatePreferences(value.Projects);
         ViewModel.Preview.UpdatePreferences(value);
         ViewModel.Tasks.UpdatePreferences(value);
+        ViewModel.Updates.UpdatePreferences(value);
         ViewModel.AudioAnalysis.UpdatePreferences(value);
         ViewModel.TimingPostProcessor.UpdatePreferences(value);
         RefreshLanguage();
@@ -207,6 +211,7 @@ public sealed partial class SettingsWindow : Window
         ViewModel.Projects.Changed -= OnProjectsChanged;
         ViewModel.Preview.Changed -= OnPreviewChanged;
         ViewModel.Tasks.Changed -= OnTasksChanged;
+        ViewModel.Updates.Changed -= OnUpdatesChanged;
         ViewModel.AudioAnalysis.Changed -= OnAudioAnalysisChanged;
         ViewModel.AudioAnalysis.RebuildRequested -= OnAudioAnalysisRebuildRequested;
         ViewModel.TimingPostProcessor.Changed -= OnTimingPreferencesChanged;
@@ -263,6 +268,11 @@ public sealed partial class SettingsWindow : Window
     private void OnTasksChanged(object? sender, TaskSettingsChangedEventArgs e)
     {
         TasksChanged?.Invoke(this, e);
+    }
+
+    private void OnUpdatesChanged(object? sender, UpdateSettingsChangedEventArgs e)
+    {
+        UpdatesChanged?.Invoke(this, e);
     }
 
     private void OnAudioAnalysisChanged(object? sender, AudioAnalysisPreferencesChangedEventArgs e)

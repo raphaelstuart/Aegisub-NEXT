@@ -19,7 +19,8 @@ public sealed partial class WelcomeWindow : Window
     public WelcomeWindow()
     {
         AvaloniaXamlLoader.Load(this);
-        chrome = WindowChrome.Attach(this, this.FindControl<WindowTitleBar>("WelcomeTitleBar")!);
+        TitleBar = this.FindControl<WindowTitleBar>("WelcomeTitleBar")!;
+        chrome = WindowChrome.Attach(this, TitleBar);
         Activated += OnActivated;
         Closed += OnClosed;
     }
@@ -31,6 +32,7 @@ public sealed partial class WelcomeWindow : Window
     }
 
     internal WelcomeViewModel ViewModel => viewModel ?? throw new InvalidOperationException("欢迎窗口尚未绑定启动模型。");
+    internal WindowTitleBar TitleBar { get; }
 
     private void OnActivated(object? sender, EventArgs e) => viewModel?.RefreshAvailability();
 

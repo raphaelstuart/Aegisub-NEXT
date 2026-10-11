@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:updates="using:AegiNext.Desktop.Settings.Updates"
+             x:Class="AegiNext.Desktop.Settings.Updates.UpdateSettingsView"
+             x:DataType="updates:UpdateSettingsViewModel" Classes="business-surface">
+  <ScrollViewer Name="UpdatesPage">
+    <StackPanel Spacing="16">
+      <Border Classes="card">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+          <TextBlock Text="{Loc Key=Updates.CurrentVersion}" VerticalAlignment="Center" />
+          <TextBlock Name="UpdateSettingsCurrentVersion" Grid.Column="1" Text="{Binding CurrentVersion}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <CheckBox Name="AutoCheckUpdatesInput" Content="{Loc Key=Settings.AutoCheckUpdates}"
+                    IsChecked="{Binding AutoCheckUpdates, Mode=TwoWay}"
+                    AutomationProperties.Name="{Loc Key=Settings.AutoCheckUpdates}" />
+          <TextBlock Text="{Loc Key=Settings.AutoCheckUpdatesHelp}" Classes="field" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <Grid ColumnDefinitions="*,240" ColumnSpacing="16">
+            <TextBlock Text="{Loc Key=Settings.UpdateChannel}" VerticalAlignment="Center" />
+            <ComboBox Name="UpdateChannelInput" Grid.Column="1" ItemsSource="{Binding Channels}"
+                      SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"
+                      AutomationProperties.Name="{Loc Key=Settings.UpdateChannel}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="updates:UpdateChannelChoice">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <TextBlock Text="{Loc Key=Settings.UpdateChannelHelp}" Classes="field" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

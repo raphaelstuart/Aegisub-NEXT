@@ -60,7 +60,8 @@ public static class ShortcutDefaults
             new(WorkbenchCommand.APPLY_TIMING_POST_PROCESSOR, ""),
             new(WorkbenchCommand.MERGE_PROJECT, ""),
             new(WorkbenchCommand.SEEK_CLIP_START, "Shift+Q"),
-            new(WorkbenchCommand.SEEK_CLIP_END, "Shift+W")
+            new(WorkbenchCommand.SEEK_CLIP_END, "Shift+W"),
+            new(WorkbenchCommand.CHECK_UPDATES, "")
         ];
     }
 }

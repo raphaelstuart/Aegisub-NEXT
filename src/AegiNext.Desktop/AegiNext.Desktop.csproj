@@ -22,6 +22,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Controls.ColorPicker" />
     <PackageReference Include="Material.Icons.Avalonia" />
+    <PackageReference Include="Markdown.Avalonia.Tight" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Dock.Avalonia" />
     <PackageReference Include="Dock.Model.Mvvm" />

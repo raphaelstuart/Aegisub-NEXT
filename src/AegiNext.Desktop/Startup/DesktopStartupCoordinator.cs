@@ -3,8 +3,8 @@ using AegiNext.Desktop.I18n;
 using AegiNext.Desktop.Menus;
 using AegiNext.Desktop.Settings;
 using AegiNext.Desktop.Shortcuts;
+using AegiNext.Desktop.Updates;
 using AegiNext.Desktop.Views;
-using AegiNext.Desktop.Windowing;
 using AegiNext.Desktop.Workspace;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -22,12 +22,15 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     private readonly Action shutdown;
     private readonly DesktopApplicationContext context;
     private readonly SettingsWindowCoordinator settings;
+    private readonly UpdateWindowCoordinator updates;
     private readonly IWorkbenchDialogService dialogs;
     private readonly Func<IWorkbenchDialogService, DesktopApplicationContext, WorkbenchSession> sessionFactory;
     private readonly CancellationTokenSource cancellation = new();
     private readonly HashSet<Key> pressedKeys = [];
     private readonly WorkbenchMenuCatalog menuCatalog;
     private readonly WorkbenchApplicationMenu? applicationMenu;
+    private readonly WelcomeWindowMenu welcomeMenu;
+    private readonly AsyncRelayCommand checkUpdatesCommand;
     private readonly RelayCommand exitCommand;
     private readonly RelayCommand unavailableCommand = new(() => { }, () => false);
     private ShortcutRouter shortcuts;
@@ -35,6 +38,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     private Task operation = Task.CompletedTask;
     private Task? disposeTask;
     private Task? shutdownTask;
+    private Task? automaticUpdateCheck;
     private bool closing;
     private bool allowWelcomeClose;
     private readonly IClassicDesktopStyleApplicationLifetime? desktopLifetime;
@@ -54,8 +58,11 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         this.setMainWindow = setMainWindow;
         this.shutdown = shutdown;
         this.context = context ?? new();
-        this.sessionFactory = sessionFactory ?? ((service, application) => new(service, applicationContext: application));
+        this.sessionFactory = sessionFactory ?? ((service, applicationContext) => new(service, applicationContext: applicationContext));
         settings = new(this.context, requestApplicationExit: RequestApplicationExit);
+        updates = new(this.context.Updates, () => this.context.Preferences);
+        checkUpdatesCommand = new(() => CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger.MANUAL),
+            AsyncRelayCommandOptions.AllowConcurrentExecutions);
         var viewModel = new WelcomeViewModel(this.context.RecentProjects,
             () => BeginOpen(true, null), path => BeginOpen(false, path), OpenSettingsAsync);
         WelcomeWindow = new(viewModel);
@@ -66,6 +73,8 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         exitCommand = new(RequestApplicationExit);
         menuCatalog = new(GetWelcomeCommand);
         menuCatalog.Update(this.context.Preferences);
+        welcomeMenu = new(WelcomeWindow, WelcomeWindow.TitleBar, menuCatalog);
+        welcomeMenu.UpdatePreferences(this.context.Preferences);
         if (OperatingSystem.IsMacOS() && Avalonia.Application.Current is { } application)
         {
             applicationMenu = new(application, menuCatalog);
@@ -84,22 +93,41 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     internal MainWindow? MainWindow { get; private set; }
     internal DesktopApplicationContext ApplicationContext => context;
     internal Task Completion => disposeTask ?? operation;
+    internal Task AutomaticUpdateCheck => automaticUpdateCheck ?? Task.CompletedTask;
 
     internal void Start()
     {
         setMainWindow(WelcomeWindow);
         WelcomeWindow.Show();
+        updates.SetOwner(WelcomeWindow);
+        automaticUpdateCheck ??= CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger.AUTOMATIC);
+    }
+
+    private async Task CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger trigger)
+    {
+        try
+        {
+            await context.Initialization.WaitAsync(cancellation.Token);
+            if (!closing)
+            {
+                await (trigger == UpdateCheckTrigger.AUTOMATIC ? updates.CheckAutomaticallyAsync() : updates.CheckManuallyAsync());
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private Task BeginOpen(bool create, string? path)
     {
         if (closing || MainWindow is not null || WelcomeWindow.ViewModel.IsBusy ||
-            WelcomeWindow.OwnedWindows.Any(window => window.IsVisible))
+            WelcomeWindow.OwnedWindows.Any(window => window.IsVisible && window is not UpdateCheckWindow))
         {
             return Task.CompletedTask;
         }
         WelcomeWindow.ViewModel.IsBusy = true;
         WelcomeWindow.ViewModel.Error = null;
+        updates.BeginOwnerTransition();
         operation = PrepareAsync(create, path);
         return operation;
     }
@@ -174,7 +202,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
                 candidate.ShowError(diagnostic);
             }
             cancellation.Token.ThrowIfCancellationRequested();
-            var window = new MainWindow(candidate);
+            var window = new MainWindow(candidate, updates);
             pendingWindow = window;
             MainWindow = window;
             activeWindow = window;
@@ -213,6 +241,10 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
                 await candidate.DisposeAsync();
             }
             WelcomeWindow.ViewModel.IsBusy = false;
+            if (!closing)
+            {
+                updates.SetOwner(activeWindow, MainWindow is { } main ? main.WindowRegistry.RegisterAuxiliary : null);
+            }
         }
     }
 
@@ -240,6 +272,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         WorkbenchCommand.NEW_PROJECT => WelcomeWindow.ViewModel.NewProjectCommand,
         WorkbenchCommand.OPEN_PROJECT => WelcomeWindow.ViewModel.OpenProjectCommand,
         WorkbenchCommand.OPEN_SETTINGS => WelcomeWindow.ViewModel.SettingsCommand,
+        WorkbenchCommand.CHECK_UPDATES => checkUpdatesCommand,
         WorkbenchCommand.EXIT => exitCommand,
         _ => unavailableCommand
     };
@@ -248,6 +281,8 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     {
         shortcuts = new(context.Preferences.ShortcutBindings);
         menuCatalog.Update(context.Preferences);
+        welcomeMenu.UpdatePreferences(context.Preferences);
+        updates.UpdatePreferences();
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => menuCatalog.RefreshLanguage();
@@ -262,7 +297,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || closing || WelcomeWindow.OwnedWindows.Any(window => window.IsVisible) ||
+        if (e.Handled || closing || WelcomeWindow.OwnedWindows.Any(window => window.IsVisible && window is not UpdateCheckWindow) ||
             WelcomeWindow.GetVisualDescendants().OfType<Control>().Any(control =>
                 control.ContextMenu?.IsOpen == true || control.ContextFlyout?.IsOpen == true ||
                 control is Popup { IsOpen: true } || control is MenuBase { IsOpen: true }))
@@ -312,6 +347,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         }
 
         window.Closed -= OnMainWindowClosed;
+        updates.ReleaseOwner(window);
         MainWindow = null;
         if (window.IsApplicationExitRequested)
         {
@@ -326,6 +362,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         WelcomeWindow.ViewModel.Error = null;
         WelcomeWindow.Show();
         WelcomeWindow.Activate();
+        updates.SetOwner(WelcomeWindow);
     }
 
     private void RequestApplicationExit()
@@ -386,6 +423,12 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
+        updates.Dispose();
+        await context.Updates.DisposeAsync();
+        if (automaticUpdateCheck is { } updateCheck)
+        {
+            await updateCheck;
+        }
         settings.Dispose();
         await settings.TransferCompletion;
         await operation;
@@ -397,6 +440,7 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         context.ErrorChanged -= OnApplicationError;
         Localization.LanguageChanged -= OnLanguageChanged;
         applicationMenu?.Dispose();
+        welcomeMenu.Dispose();
         if (MainWindow is { } window)
         {
             window.Closed -= OnMainWindowClosed;

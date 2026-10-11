@@ -51,7 +51,9 @@ internal static class SettingsTransferJson
             {
                 foreach (var property in info.Properties)
                 {
-                    property.IsRequired = property.Get is not null && property.Set is not null;
+                    var optionalUpdatePreference = info.Type == typeof(WorkbenchPreferences) &&
+                        property.Name is nameof(WorkbenchPreferences.AutoCheckUpdates) or nameof(WorkbenchPreferences.UpdateChannel);
+                    property.IsRequired = property.Get is not null && property.Set is not null && !optionalUpdatePreference;
                 }
             }
         });

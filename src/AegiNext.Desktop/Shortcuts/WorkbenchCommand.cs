@@ -53,5 +53,6 @@ public enum WorkbenchCommand
     APPLY_TIMING_POST_PROCESSOR,
     MERGE_PROJECT,
     SEEK_CLIP_START,
-    SEEK_CLIP_END
+    SEEK_CLIP_END,
+    CHECK_UPDATES
 }

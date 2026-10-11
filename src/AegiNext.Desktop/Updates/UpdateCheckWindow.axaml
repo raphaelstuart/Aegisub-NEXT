@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:common="using:AegiNext.Desktop.Controls.Common"
+        xmlns:updates="using:AegiNext.Desktop.Updates"
+        xmlns:md="using:Markdown.Avalonia"
+        x:Class="AegiNext.Desktop.Updates.UpdateCheckWindow" x:DataType="updates:UpdateCheckViewModel"
+        Classes="business-surface" Title="{Loc Key=Updates.Title}"
+        Width="720" Height="580" MinWidth="480" MinHeight="340" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*">
+    <common:WindowTitleBar Name="UpdateTitleBar" Title="{Loc Key=Updates.Title}" />
+    <Grid Grid.Row="1" Margin="24" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="16">
+      <TextBlock Name="UpdateMessageText" Text="{Binding Message}" FontWeight="SemiBold"
+                 FontSize="18" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="1" Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Loc Key=Updates.CurrentVersion}" Foreground="{DynamicResource PreviewMuted}" />
+          <TextBlock Name="CurrentVersionText" Text="{Binding CurrentVersion}" />
+        </StackPanel>
+        <TextBlock Name="AvailableVersionText" Text="{Binding AvailableVersion}" IsVisible="{Binding HasRelease}"
+                   FontWeight="SemiBold" TextWrapping="Wrap" />
+      </StackPanel>
+      <Border Grid.Row="2" BorderThickness="1" BorderBrush="{DynamicResource PreviewBorder}" CornerRadius="6"
+              IsVisible="{Binding HasRelease}">
+        <md:MarkdownScrollViewer Name="ReleaseNotesViewer" Markdown="{Binding ReleaseNotesMarkdown}"
+                                 MarkdownStyleName="FluentTheme" SelectionEnabled="True" Margin="12"
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+      </Border>
+      <TextBlock Grid.Row="3" Name="UpdateErrorText" Text="{Binding Error}" IsVisible="{Binding HasError}"
+                 Foreground="{DynamicResource PreviewError}" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Name="UpdateRetryButton" Content="{Loc Key=Updates.Retry}" Command="{Binding RetryCommand}"
+                IsVisible="{Binding CanRetry}" MinWidth="88" />
+        <Button Name="UpdateReleaseButton" Content="{Loc Key=Updates.OpenRelease}" Command="{Binding OpenReleaseCommand}"
+                IsVisible="{Binding HasRelease}" IsDefault="True" />
+        <Button Name="UpdateCloseButton" Content="{Loc Key=Updates.Close}" MinWidth="88"
+                IsCancel="True" Click="OnCloseClick" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>
