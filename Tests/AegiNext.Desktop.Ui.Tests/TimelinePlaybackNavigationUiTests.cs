@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace AegiNext.Desktop.Ui.Tests;
@@ -57,6 +58,11 @@ public sealed class TimelinePlaybackNavigationUiTests
 
         var navigated = context.ViewModel.Timeline.Viewport;
         Assert.False(context.ViewModel.Timeline.IsPlaybackFollowEnabled);
+        using (var image = new RenderTargetBitmap(new((int)timeline.Bounds.Width, (int)timeline.Bounds.Height)))
+        {
+            image.Render(timeline);
+            Assert.Equal(0, timeline.CachedDrawingBytes);
+        }
         for (var tick = 0; tick < 4; tick++)
         {
             context.Clock.Advance(TimeSpan.FromMilliseconds(125));

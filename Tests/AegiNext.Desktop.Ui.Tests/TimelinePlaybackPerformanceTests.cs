@@ -121,6 +121,7 @@ public sealed class TimelinePlaybackPerformanceTests
             await MeasurePlaybackPhaseAsync("PlayingStationary", false);
             await MeasurePlaybackPhaseAsync("PlayingScroll", true);
             playbackFollowEnabledAfterScroll = session.ViewModel.Timeline.IsPlaybackFollowEnabled;
+            await MeasurePlaybackPhaseAsync("PlayingZoom", false, true);
 
             await PumpUntilCompletedAsync(controller.PauseAsync());
             Volatile.Write(ref currentPhase, "TimingEntryPaused");
@@ -151,7 +152,7 @@ public sealed class TimelinePlaybackPerformanceTests
                 Assert.True(sample.Snapshot.PresentedAtPosition < sample.Snapshot.PresentedFrameEnd);
             });
 
-            async Task MeasurePlaybackPhaseAsync(string phase, bool scroll)
+            async Task MeasurePlaybackPhaseAsync(string phase, bool scroll, bool zoom = false)
             {
                 Volatile.Write(ref currentPhase, phase);
                 var beforeDiagnostics = controller.PipelineDiagnostics;
@@ -165,11 +166,12 @@ public sealed class TimelinePlaybackPerformanceTests
                 {
                     var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                     PumpUi();
-                    if (scroll)
+                    if (scroll || zoom)
                     {
                         var wheelStarted = Stopwatch.GetTimestamp();
                         var verticalDelta = iteration % 5 == 0 ? (iteration % 60 < 30 ? -1 : 1) : 0;
-                        window.MouseWheel(point, new Vector(-1, verticalDelta), RawInputModifiers.None);
+                        window.MouseWheel(point, zoom ? new Vector(0, iteration % 24 < 12 ? 1 : -1) : new Vector(-1, verticalDelta),
+                            zoom ? RawInputModifiers.Control : RawInputModifiers.None);
                         wheelMilliseconds.Add(Stopwatch.GetElapsedTime(wheelStarted).TotalMilliseconds);
                     }
                     session.Tick();

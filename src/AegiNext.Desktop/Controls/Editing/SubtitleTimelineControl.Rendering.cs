@@ -5,11 +5,17 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
 
 namespace AegiNext.Desktop.Controls;
 
 public sealed partial class SubtitleTimelineControl
 {
+    private const int VIEWPORT_CACHE_IDLE_MILLISECONDS = 100;
+    private readonly DispatcherTimer viewportCacheTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(VIEWPORT_CACHE_IDLE_MILLISECONDS)
+    };
     private readonly TimelineDrawingCache audioDrawing = new();
     private readonly TimelineDrawingCache clipDrawing = new();
     private readonly TimelineDrawingCache chromeDrawing = new();
@@ -32,6 +38,7 @@ public sealed partial class SubtitleTimelineControl
     internal long CurveSampleCount { get; private set; }
     internal int VisibleClipProjectionCount { get; private set; }
     internal long VisibleClipQueryWorkCount { get; private set; }
+    internal bool IsViewportDrawingDeferred => viewportCacheTimer.IsEnabled;
     internal long CachedDrawingBytes => audioDrawing.AllocatedBytes + clipDrawing.AllocatedBytes + chromeDrawing.AllocatedBytes +
         markerDrawing.AllocatedBytes + previewDrawing.AllocatedBytes;
 
@@ -51,7 +58,7 @@ public sealed partial class SubtitleTimelineControl
         RefreshClipRangeProjection();
         RefreshVisibleClipRanges();
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
-        var cacheEnabled = TimelineDrawingCache.CanCache(Bounds.Size, scaling, 5);
+        var cacheEnabled = !IsViewportDrawingDeferred && TimelineDrawingCache.CanCache(Bounds.Size, scaling, 5);
         var body = BodyRectangle();
         audioDrawing.Draw(context, Bounds.Size, scaling, cacheEnabled, drawing =>
         {
@@ -118,6 +125,18 @@ public sealed partial class SubtitleTimelineControl
         drawingDrag = drag;
         drawingPreviewLayerId = PreviewLayerId;
         drawingSelection = selectedIds.ToArray();
+    }
+
+    private void DeferViewportDrawingCache()
+    {
+        viewportCacheTimer.Stop();
+        viewportCacheTimer.Start();
+    }
+
+    private void OnViewportDrawingSettled(object? sender, EventArgs e)
+    {
+        viewportCacheTimer.Stop();
+        InvalidateVisual();
     }
 
     private void InvalidateSceneDrawing()

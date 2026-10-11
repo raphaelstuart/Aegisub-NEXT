@@ -108,8 +108,10 @@ public sealed class TimelineRapidZoomAnalysisUiTests
             Assert.Equal(MediaTime.Zero, finalPlan.Visible.Start);
             Assert.True(finalPlan.Visible.End >= new MediaTime(duration));
             await coordinator.Completion.WaitAsync(TimeSpan.FromSeconds(45), TestContext.Current.CancellationToken);
+            await Task.Delay(150, TestContext.Current.CancellationToken);
             context.Window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
+            Assert.False(timeline.IsViewportDrawingDeferred);
             var waveform = Assert.IsType<WaveformData>(model.Waveform);
             var spectrum = Assert.IsType<SpectrogramData>(model.Spectrogram);
             Assert.Equal(finalPlan.Analysis, waveform.Request);

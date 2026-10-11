@@ -392,6 +392,7 @@ internal sealed partial class TimelinePanelView : UserControl, IWorkbenchPanelVi
         {
             viewModel.SuspendPlaybackFollow();
         }
+        timeline.SetViewport(e.Viewport, viewModel.FullDuration, !applying && e.IsUserInitiated);
         viewModel.Viewport = e.Viewport;
     }
     private void OnTrackContextRequested(object? sender, TimelineTrackContextEventArgs e)

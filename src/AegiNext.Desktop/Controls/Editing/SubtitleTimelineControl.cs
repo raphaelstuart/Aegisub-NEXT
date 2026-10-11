@@ -85,6 +85,7 @@ public sealed partial class SubtitleTimelineControl : Control, IDisposable
     {
         InitializeTrackSolo();
         InitializeTrackReorder();
+        viewportCacheTimer.Tick += OnViewportDrawingSettled;
         Focusable = true;
         ClipToBounds = true;
         ActualThemeVariantChanged += (_, _) => RefreshTheme();
@@ -208,14 +209,18 @@ public sealed partial class SubtitleTimelineControl : Control, IDisposable
     internal double RulerHeight => Math.Min(24, Bounds.Height * 0.2);
     internal double ContentHeight => contentHeight;
 
-    /// <summary>接收同一编辑视口和工程范围，不操作播放控制器。</summary>
-    public void SetViewport(TimelineViewport value, double totalDuration)
+    /// <summary>接收同一编辑视口和工程范围；用户导航期间延后建立绘制缓存，不操作播放控制器。</summary>
+    public void SetViewport(TimelineViewport value, double totalDuration, bool isUserInitiated = false)
     {
         duration = Math.Max(0.001, totalDuration);
         var next = value.Resize(Math.Max(0, Bounds.Width - HeaderWidth),
             Math.Max(0, Bounds.Height - RulerHeight), duration, ContentHeight);
         if (next != viewport)
         {
+            if (isUserInitiated && VisualRoot is not null)
+            {
+                DeferViewportDrawingCache();
+            }
             viewport = next;
             InvalidateSceneDrawing();
             markersDirty = true;
@@ -764,6 +769,8 @@ public sealed partial class SubtitleTimelineControl : Control, IDisposable
         clipPasteDisposed = true;
         DisposeTrackSolo();
         DisposeTrackReorder();
+        viewportCacheTimer.Stop();
+        viewportCacheTimer.Tick -= OnViewportDrawingSettled;
         clipPastePointer = null;
         Localization.LanguageChanged -= OnLanguageChanged;
         CancelDrag();
@@ -791,6 +798,7 @@ public sealed partial class SubtitleTimelineControl : Control, IDisposable
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        viewportCacheTimer.Stop();
         clipPastePointer = null;
         Localization.LanguageChanged -= OnLanguageChanged;
         CancelGesture();
@@ -1665,7 +1673,7 @@ public sealed partial class SubtitleTimelineControl : Control, IDisposable
 
     private void PublishViewport(TimelineViewport value, bool isUserInitiated = true)
     {
-        SetViewport(value, duration);
+        SetViewport(value, duration, isUserInitiated);
         ViewportChanged?.Invoke(this, new(viewport, isUserInitiated));
     }
 
