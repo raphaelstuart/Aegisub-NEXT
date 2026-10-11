@@ -22,6 +22,43 @@ namespace AegiNext.Desktop.Ui.Tests;
 
 public sealed class TimelineAnimationRowCollapseWorkflowUiTests
 {
+    [AvaloniaFact]
+    public async Task NewAnimationRowsStartCompactAndPointerExpansionSurvivesCurveEdits()
+    {
+        using var environment = new UiTestEnvironment();
+        var document = CreateDocument();
+        document = document with { Layers = [document.Layers[0] with { Tracks = [] }] };
+        await using var session = await CreateSessionAsync(environment, new(), document);
+        var row = GetRowId(document, TimelineRowScope.TRACK);
+        var layerId = document.Layers[0].Id;
+        var window = ShowWindow(session);
+        try
+        {
+            var timeline = UiTestActions.Find<SubtitleTimelineControl>(window, "Timeline");
+            session.Editor.SetKeyframe(layerId, AnimationProperty.OPACITY, new(new(0), 0.25));
+            Flush(window);
+
+            Assert.True(timeline.IsAnimationRowCollapsed(row));
+            Assert.Equal(40, timeline.GetAnimationRowRectangle(row)!.Value.Height);
+            ClickAnimationExpander(window, timeline, row);
+            session.Editor.SetKeyframe(layerId, AnimationProperty.OPACITY, new(new(0), 0.5));
+            Flush(window);
+
+            Assert.False(timeline.IsAnimationRowCollapsed(row));
+            Assert.Equal(76, timeline.GetAnimationRowRectangle(row)!.Value.Height);
+            ClickAnimationExpander(window, timeline, row);
+            session.Editor.SetKeyframe(layerId, AnimationProperty.OPACITY, new(new(0), 0.75));
+            Flush(window);
+
+            Assert.True(timeline.IsAnimationRowCollapsed(row));
+            Assert.Equal(40, timeline.GetAnimationRowRectangle(row)!.Value.Height);
+        }
+        finally
+        {
+            await CloseWindowAsync(window);
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData(TimelineRowScope.TRACK)]
     public async Task PointerCollapsePreservesContentSnapshotRedoAndTheCurrentViewAcrossContentUndo(TimelineRowScope scope)

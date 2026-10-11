@@ -353,6 +353,8 @@
     "Settings.Effect_pop-out": "Pop out",
     "Settings.Effect_slide-in": "Slide in",
     "Settings.Effect_slide-out": "Slide out",
+    "Settings.Effect_letter-bounce": "Letter bounce",
+    "Settings.Effect_letter-pulse": "Letter pulse",
     "Settings.Theme": "Theme",
     "Settings.Accent": "Accent color",
     "Settings.LinearRgba": "Linear RGBA",

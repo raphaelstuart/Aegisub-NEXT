@@ -353,6 +353,8 @@
     "Settings.Effect_pop-out": "弹出",
     "Settings.Effect_slide-in": "滑入",
     "Settings.Effect_slide-out": "滑出",
+    "Settings.Effect_letter-bounce": "逐字弹跳",
+    "Settings.Effect_letter-pulse": "逐字放大往返",
     "Settings.Theme": "外观",
     "Settings.Accent": "主色",
     "Settings.LinearRgba": "线性 RGBA",

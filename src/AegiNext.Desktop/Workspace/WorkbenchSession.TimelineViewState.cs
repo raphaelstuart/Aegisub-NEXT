@@ -6,6 +6,7 @@ internal sealed partial class WorkbenchSession
 {
     private TimelineViewState timelineViewState = new();
     private TimelineViewState savedTimelineViewState = new();
+    private readonly HashSet<TimelineAnimationRowId> knownTimelineAnimationRows = [];
 
     internal TimelineViewState TimelineViewState => timelineViewState;
     internal bool HasUnsavedChanges => HasProjectDrafts || editor.HasUnsavedChanges ||
@@ -19,6 +20,7 @@ internal sealed partial class WorkbenchSession
             return;
         }
 
+        knownTimelineAnimationRows.Add(id);
         var rows = timelineViewState.CollapsedAnimationRows;
         if (rows.Contains(id) == isCollapsed)
         {
@@ -83,10 +85,33 @@ internal sealed partial class WorkbenchSession
     internal void ResetTimelineViewState(ProjectDocument document)
     {
         var state = NormalizeTimelineViewState(document.TimelineViewState);
+        knownTimelineAnimationRows.Clear();
+        knownTimelineAnimationRows.UnionWith(GetTimelineAnimationRows(document));
+        knownTimelineAnimationRows.UnionWith(state.CollapsedAnimationRows);
         timelineViewState = state;
         savedTimelineViewState = state;
         ViewModel.Timeline.TimelineViewState = state;
     }
+
+    private void InitializeNewTimelineAnimationRows(ProjectDocument document)
+    {
+        var added = GetTimelineAnimationRows(document).Where(knownTimelineAnimationRows.Add).ToArray();
+        if (added.Length == 0)
+        {
+            return;
+        }
+
+        ApplyTimelineViewState(timelineViewState with
+        {
+            CollapsedAnimationRows = [.. timelineViewState.CollapsedAnimationRows.Union(added)]
+        });
+    }
+
+    private static IEnumerable<TimelineAnimationRowId> GetTimelineAnimationRows(ProjectDocument document) =>
+        document.Layers.SelectMany(layer => layer.Tracks
+            .Where(track => !track.Keyframes.IsEmpty || !track.Transforms.IsEmpty)
+            .Select(track => new TimelineAnimationRowId(TimelineRowScope.TRACK, layer.TrackId, track.Property,
+                track.Target.TextRangeId, track.Target.State)));
 
     internal ProjectDocument CreatePersistenceSnapshot(ProjectDocument contentSnapshot)
     {

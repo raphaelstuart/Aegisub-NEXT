@@ -337,6 +337,8 @@
     "Settings.Effect_pop-out": "ポップアウト",
     "Settings.Effect_slide-in": "スライドイン",
     "Settings.Effect_slide-out": "スライドアウト",
+    "Settings.Effect_letter-bounce": "文字ごとのバウンド",
+    "Settings.Effect_letter-pulse": "文字ごとの拡大往復",
     "Settings.Theme": "テーマ",
     "Settings.Accent": "アクセントカラー",
     "Settings.LinearRgba": "リニア RGBA",
