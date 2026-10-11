@@ -30,6 +30,7 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
     private Task? pendingSeek;
     private MediaTime pendingSeekTarget;
     private bool pendingSeekResumePlayback;
+    private VideoPreviewSeekMode pendingSeekMode;
     private long pendingSeekEpoch;
     private long pendingSeekSequence;
     private long pendingSeekPresentationRevision;
@@ -910,6 +911,7 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
                         run.PresentedFrameEnd = snapshot.PresentedFrameEnd;
                         run.PresentedAtPosition = snapshot.PresentedAtPosition;
                         run.PresentedGeneration = snapshot.PresentedGeneration;
+                        run.PresentedRevision = completed.Revision;
                         run.FirstPresentation.TrySetResult(true);
                         PulsePresentationUnderLock(run);
                     }
@@ -1003,6 +1005,7 @@ public sealed partial class VideoPreviewController : IAsyncDisposable
         run.PresentedFrameEnd = null;
         run.PresentedAtPosition = null;
         run.PresentedGeneration = null;
+        run.PresentedRevision = null;
         PulsePresentationUnderLock(run);
     }
 

@@ -32,6 +32,7 @@ internal sealed class VideoPreviewRun : IDisposable
     internal MediaTime? PresentedFrameTime { get; set; }
     internal MediaTime? PresentedAtPosition { get; set; }
     internal long? PresentedGeneration { get; set; }
+    internal long? PresentedRevision { get; set; }
     internal CancellationTokenSource? ConversionCancellation { get; set; }
     internal CancellationTokenSource PreparationCancellation { get; set; }
     internal SemaphoreSlim PreparedSlots { get; } = new(2, 2);

@@ -8,14 +8,26 @@ internal sealed partial class WorkbenchSession
     internal PreviewInteractionDiagnostics InteractionDiagnostics { get; } = new();
 
     internal void SetInteractiveSeeking(bool value) => playback.SetInteractive(value);
-    internal void CancelInteractiveSeeking() => playback.Invalidate();
+    internal void CancelInteractiveSeeking() => playback.Cancel();
     internal bool IsTransportPlaybackRequested => playback.IsPlaybackRequested;
 
     internal Task SeekForEditingAsync(MediaTime time) => playback.SeekForEditingAsync((controller.Snapshot.Start ?? MediaTime.Zero) + time);
 
     internal Task SeekFromUserAsync(MediaTime position) => playback.SeekFromUserAsync(position);
     internal Task SeekRelativeAsync(long seconds) => playback.SeekRelativeAsync(seconds);
-    internal Task SeekProjectTimeAsync(MediaTime relative) => playback.SeekProjectTimeAsync(relative);
+    internal Task SeekProjectTimeAsync(MediaTime relative) => playback.IsInteractive
+        ? playback.SeekProjectTimeAsync(relative)
+        : RunCommandAsync(() => playback.SeekProjectTimeAsync(relative));
+
+    internal void RefreshPendingPlaybackPosition()
+    {
+        var relative = ProjectPosition;
+        ViewModel.Timeline.Position = relative;
+        if (!ViewModel.Preview.IsScrubbing)
+        {
+            ViewModel.Preview.Position = Math.Clamp(ToSeconds(relative), 0, ViewModel.Preview.Duration);
+        }
+    }
 
     private async Task SeekSelectedClipBoundaryAsync(bool end)
     {

@@ -204,5 +204,5 @@ internal sealed class PreviewPanelViewModel : ObservableObject
 
     public ICommand PlayCommand => session.ViewModel.GetCommand(AegiNext.Desktop.Shortcuts.WorkbenchCommand.PLAY_PAUSE);
     /// <summary>提交工程相对时间的播放定位请求。</summary>
-    public Task SeekAsync(MediaTime target) => session.RunCommandAsync(() => session.SeekProjectTimeAsync(target));
+    public Task SeekAsync(MediaTime target) => session.SeekProjectTimeAsync(target);
 }

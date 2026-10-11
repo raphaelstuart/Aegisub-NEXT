@@ -10,5 +10,5 @@ internal sealed partial class WorkbenchSession
     internal ProjectPreviewState GetPreviewState() => Volatile.Read(ref previewState);
 
     private ProjectPreviewState CreatePreviewState(ProjectDocument? document = null) => new(document ?? PreviewDocument, ProjectDirectory, ProjectPosition,
-        playback.IsInteractive, Preferences.PreviewQuality, previewQualityRevision);
+        playback.UsesInteractiveQuality, Preferences.PreviewQuality, previewQualityRevision);
 }

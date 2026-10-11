@@ -120,7 +120,7 @@ internal sealed partial class WorkbenchSession
         var document = PreviewDocument;
         var layer = document.Layers.FirstOrDefault(value => value.Id == SelectedLayerId);
         ViewModel.Preview.Scene = new(document, layer, EditingPosition, SceneEditing.Mode,
-            ProjectDirectory, SelectedKeyTime is not null || SceneEditing.GestureTarget is not null, playback.IsInteractive,
+            ProjectDirectory, SelectedKeyTime is not null || SceneEditing.GestureTarget is not null, playback.UsesInteractiveQuality,
             preferences.PreviewQuality);
         Volatile.Write(ref previewState, CreatePreviewState(document));
     }

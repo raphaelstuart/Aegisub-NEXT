@@ -52,7 +52,7 @@ public sealed class PreviewScrubbingLiveUiTests
             var target = context.Session.ProjectPosition;
             Assert.True(target >= new MediaTime(5));
             await DrainAsync(() => context.Controller.Snapshot.PresentedAtPosition == target);
-            Assert.Equal(playing ? VideoPlaybackState.PLAYING : VideoPlaybackState.PAUSED, context.Controller.Snapshot.State);
+            Assert.Equal(VideoPlaybackState.PAUSED, context.Controller.Snapshot.State);
             Assert.True(context.Controller.Snapshot.PresentedGeneration > initialGeneration);
             Assert.True(context.Controller.Snapshot.PresentedFrameTime >= new MediaTime(5));
             Assert.True(useProgressBar ? context.ViewModel.Preview.IsScrubbing : context.ViewModel.Timeline.IsSeeking);
@@ -61,7 +61,7 @@ public sealed class PreviewScrubbingLiveUiTests
             var expectedSize = quality == PreviewQuality.LOWEST ? new PixelSize(568, 320) : new PixelSize(960, 540);
             Assert.Equal(expectedSize, UiTestActions.Find<EffectCanvasControl>(context.Window, "EffectCanvas").MaximumPreviewSize);
             context.Clock.Advance(TimeSpan.FromMilliseconds(200));
-            Assert.Equal(playing ? target + new MediaTime(1, 5) : target, context.Controller.Snapshot.Position);
+            Assert.Equal(target, context.Controller.Snapshot.Position);
             context.Window.MouseMove(start);
             var returned = context.Session.ProjectPosition;
             Assert.InRange((double)returned.Numerator / returned.Denominator, 0, 0.1);
@@ -107,7 +107,7 @@ public sealed class PreviewScrubbingLiveUiTests
         context.Window.UpdateLayout();
         var first = timeline.TranslatePoint(new(timeline.HeaderWidth + timeline.PixelsPerSecond * 5, 8), context.Window)!.Value;
         var last = first + new Vector(timeline.PixelsPerSecond * 5, 0);
-        var seeks = source.SeekCount;
+        var seeks = source.SeekCount + (playing ? 1 : 0);
         context.Window.MouseDown(first, MouseButton.Left);
         try
         {
@@ -208,37 +208,39 @@ public sealed class PreviewScrubbingLiveUiTests
         var firstPoint = timeline.TranslatePoint(new(timeline.HeaderWidth + timeline.PixelsPerSecond * 5, 8), context.Window)!.Value;
         var finalPoint = timeline.TranslatePoint(new(timeline.HeaderWidth + timeline.PixelsPerSecond * 10, 8), context.Window)!.Value;
         var blocked = context.Source.BlockNextSeek(new(5));
-        var readsBefore = context.Source.ReadCount;
         context.Window.MouseDown(firstPoint, MouseButton.Left);
         try
         {
             await DrainAsync(() => blocked.Entered.IsCompleted);
+            var readsBefore = context.Source.ReadCount;
+            context.Source.SeekTargets.Clear();
             for (var index = 1; index <= 100; index++)
             {
                 context.Window.MouseMove(firstPoint + (finalPoint - firstPoint) * (index / 100d));
             }
             Assert.Equal(new MediaTime(10), context.Window.Session.ProjectPosition);
             Assert.True(timeline.IsSeeking);
-            Assert.Equal([new MediaTime(5)], context.Source.SeekTargets.ToArray());
+            Assert.Empty(context.Source.SeekTargets);
             Assert.Equal(readsBefore, context.Source.ReadCount);
             var heartbeat = false;
             Dispatcher.UIThread.Post(() => heartbeat = true, DispatcherPriority.Input);
             Dispatcher.UIThread.RunJobs();
             Assert.True(heartbeat);
-            Assert.Equal([new MediaTime(5)], context.Source.SeekTargets.ToArray());
+            Assert.Empty(context.Source.SeekTargets);
 
             blocked.Release();
             await DrainAsync(() => context.Controller.Snapshot.PresentedFrameTime == new MediaTime(10) &&
-                context.Controller.Snapshot.State == VideoPlaybackState.PLAYING);
-            Assert.Equal([new MediaTime(5), new(10)], context.Source.SeekTargets.ToArray());
+                context.Controller.Snapshot.State == VideoPlaybackState.PAUSED);
+            Assert.Equal([new MediaTime(10)], context.Source.SeekTargets.ToArray());
         }
         finally
         {
             blocked.Release();
             context.Window.MouseUp(finalPoint, MouseButton.Left);
         }
-        await DrainAsync(() => context.Source.SeekTargets.Count == 3 && !timeline.IsSeeking);
-        Assert.Equal([new MediaTime(5), new(10), new(10)], context.Source.SeekTargets.ToArray());
+        await DrainAsync(() => context.Source.SeekTargets.Count == 2 && !timeline.IsSeeking &&
+            context.Controller.Snapshot.State == VideoPlaybackState.PLAYING);
+        Assert.Equal([new MediaTime(10), new(10)], context.Source.SeekTargets.ToArray());
     }
 
     [AvaloniaTheory]
@@ -257,11 +259,12 @@ public sealed class PreviewScrubbingLiveUiTests
         context.Window.UpdateLayout();
         var thumb = slider.GetVisualDescendants().OfType<Thumb>().Single();
         var point = thumb.TranslatePoint(new(thumb.Bounds.Width / 2, thumb.Bounds.Height / 2), context.Window)!.Value;
-        var seekCount = source.SeekCount;
         var position = context.Session.ProjectPosition;
         context.Window.MouseDown(point, MouseButton.Left);
         try
         {
+            await DrainAsync(() => context.Controller.Snapshot.State == VideoPlaybackState.PAUSED);
+            var seekCount = source.SeekCount;
             context.ViewModel.Preview.Position = 4;
             Dispatcher.UIThread.RunJobs();
             Assert.True(context.ViewModel.Preview.IsScrubbing);
@@ -274,8 +277,8 @@ public sealed class PreviewScrubbingLiveUiTests
             context.Window.MouseUp(point, MouseButton.Left);
         }
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(seekCount, source.SeekCount);
-        Assert.Equal(playing ? VideoPlaybackState.PLAYING : VideoPlaybackState.PAUSED, context.Controller.Snapshot.State);
+        await DrainAsync(() => context.Controller.Snapshot.State == VideoPlaybackState.PAUSED);
+        Assert.Equal(position, context.Controller.Snapshot.Position);
     }
 
     [AvaloniaFact]

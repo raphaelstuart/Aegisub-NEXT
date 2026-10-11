@@ -93,6 +93,7 @@ internal sealed class WorkbenchViewModel : ObservableObject
     /// <summary>取消未完成的预览、时间线和面板指针手势。</summary>
     public void CancelGestures()
     {
+        session.CancelInteractiveSeeking();
         Preview.IsScrubbing = false;
         Timeline.IsSeeking = false;
         GesturesCancelled?.Invoke(this, EventArgs.Empty);

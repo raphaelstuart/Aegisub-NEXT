@@ -12,6 +12,8 @@ internal sealed class PreviewAudioOutput : IAudioOutput
     internal bool Paused { get; private set; } = true;
     internal float Gain { get; private set; } = 1;
     internal int DisposeCount { get; private set; }
+    internal int ClearCount { get; private set; }
+    internal int PauseCount { get; private set; }
     internal Action? PlaybackStarted { get; set; }
     internal bool ThrowOnPause { get; set; }
     internal AudioClockQuality ClockQuality
@@ -82,6 +84,10 @@ internal sealed class PreviewAudioOutput : IAudioOutput
                 throw new InvalidOperationException("输出设备暂停失败。");
             }
             Paused = paused;
+            if (paused)
+            {
+                PauseCount++;
+            }
             if (!paused)
             {
                 PlaybackStarted?.Invoke();
@@ -93,6 +99,7 @@ internal sealed class PreviewAudioOutput : IAudioOutput
     {
         lock (gate)
         {
+            ClearCount++;
             queued = 0;
             playedFrames = 0;
             written.Clear();

@@ -493,7 +493,7 @@ internal sealed partial class TimelinePanelViewModel : ObservableObject
     }
 
     /// <summary>提交时间线上的播放定位请求。</summary>
-    public Task SeekAsync(MediaTime time) => session.RunCommandAsync(() => session.SeekProjectTimeAsync(time));
+    public Task SeekAsync(MediaTime time) => session.SeekProjectTimeAsync(time);
     /// <summary>同步字幕选择。</summary>
     public void SelectCue(Guid id) => session.SelectCue(id);
     /// <summary>同步非字幕片段选择。</summary>
