@@ -29,8 +29,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     private readonly HashSet<Key> pressedKeys = [];
     private readonly WorkbenchMenuCatalog menuCatalog;
     private readonly WorkbenchApplicationMenu? applicationMenu;
-    private readonly WelcomeWindowMenu welcomeMenu;
-    private readonly AsyncRelayCommand checkUpdatesCommand;
     private readonly RelayCommand exitCommand;
     private readonly RelayCommand unavailableCommand = new(() => { }, () => false);
     private ShortcutRouter shortcuts;
@@ -61,8 +59,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         this.sessionFactory = sessionFactory ?? ((service, applicationContext) => new(service, applicationContext: applicationContext));
         settings = new(this.context, requestApplicationExit: RequestApplicationExit);
         updates = new(this.context.Updates, () => this.context.Preferences);
-        checkUpdatesCommand = new(() => CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger.MANUAL),
-            AsyncRelayCommandOptions.AllowConcurrentExecutions);
         var viewModel = new WelcomeViewModel(this.context.RecentProjects,
             () => BeginOpen(true, null), path => BeginOpen(false, path), OpenSettingsAsync);
         WelcomeWindow = new(viewModel);
@@ -73,8 +69,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         exitCommand = new(RequestApplicationExit);
         menuCatalog = new(GetWelcomeCommand);
         menuCatalog.Update(this.context.Preferences);
-        welcomeMenu = new(WelcomeWindow, WelcomeWindow.TitleBar, menuCatalog);
-        welcomeMenu.UpdatePreferences(this.context.Preferences);
         if (OperatingSystem.IsMacOS() && Avalonia.Application.Current is { } application)
         {
             applicationMenu = new(application, menuCatalog);
@@ -100,17 +94,17 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         setMainWindow(WelcomeWindow);
         WelcomeWindow.Show();
         updates.SetOwner(WelcomeWindow);
-        automaticUpdateCheck ??= CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger.AUTOMATIC);
+        automaticUpdateCheck ??= CheckForUpdatesAfterInitializationAsync();
     }
 
-    private async Task CheckForUpdatesAfterInitializationAsync(UpdateCheckTrigger trigger)
+    private async Task CheckForUpdatesAfterInitializationAsync()
     {
         try
         {
             await context.Initialization.WaitAsync(cancellation.Token);
             if (!closing)
             {
-                await (trigger == UpdateCheckTrigger.AUTOMATIC ? updates.CheckAutomaticallyAsync() : updates.CheckManuallyAsync());
+                await updates.CheckAutomaticallyAsync();
             }
         }
         catch (OperationCanceledException)
@@ -272,7 +266,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         WorkbenchCommand.NEW_PROJECT => WelcomeWindow.ViewModel.NewProjectCommand,
         WorkbenchCommand.OPEN_PROJECT => WelcomeWindow.ViewModel.OpenProjectCommand,
         WorkbenchCommand.OPEN_SETTINGS => WelcomeWindow.ViewModel.SettingsCommand,
-        WorkbenchCommand.CHECK_UPDATES => checkUpdatesCommand,
         WorkbenchCommand.EXIT => exitCommand,
         _ => unavailableCommand
     };
@@ -281,7 +274,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
     {
         shortcuts = new(context.Preferences.ShortcutBindings);
         menuCatalog.Update(context.Preferences);
-        welcomeMenu.UpdatePreferences(context.Preferences);
         updates.UpdatePreferences();
     }
 
@@ -440,7 +432,6 @@ internal sealed class DesktopStartupCoordinator : IAsyncDisposable
         context.ErrorChanged -= OnApplicationError;
         Localization.LanguageChanged -= OnLanguageChanged;
         applicationMenu?.Dispose();
-        welcomeMenu.Dispose();
         if (MainWindow is { } window)
         {
             window.Closed -= OnMainWindowClosed;

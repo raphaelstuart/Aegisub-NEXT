@@ -4,20 +4,24 @@ using AegiNext.Desktop.I18n;
 using AegiNext.Desktop.Settings;
 using AegiNext.Desktop.Startup;
 using AegiNext.Desktop.Updates;
+using AegiNext.Desktop.Views;
 using AegiNext.Rendering.Fonts;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AegiNext.Desktop.Ui.Tests.Updates;
 
-/// <summary>验证欢迎页更新入口、启动检查次数及共享工作台生命周期。</summary>
+/// <summary>验证启动检查次数、欢迎页输入及共享工作台生命周期。</summary>
 public sealed class UpdateStartupUiTests
 {
-    /// <summary>启动初期手动检查等待初始化完成，再使用已加载的发布渠道。</summary>
+    /// <summary>自动检查等待初始化完成，再使用已加载的发布渠道。</summary>
     [AvaloniaFact]
-    public async Task EarlyManualCheckWaitsForInitializationAndUsesTheSelectedChannel()
+    public async Task AutomaticCheckWaitsForInitializationAndUsesTheSelectedChannel()
     {
         using var environment = new UiTestEnvironment();
         var catalog = new TaskCompletionSource<SystemFontCatalog>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -29,7 +33,7 @@ public sealed class UpdateStartupUiTests
         });
         using (var store = new WorkbenchPreferencesStore(environment.DirectoryPath))
         {
-            await store.SaveAsync(new() { AutoCheckUpdates = false, UpdateChannel = UpdateChannel.STABLE });
+            await store.SaveAsync(new() { AutoCheckUpdates = true, UpdateChannel = UpdateChannel.STABLE });
         }
         await using var application = new DesktopApplicationContext(new(environment.DirectoryPath),
             fontSelectionService: fonts, updateReleaseSource: source);
@@ -37,7 +41,6 @@ public sealed class UpdateStartupUiTests
         try
         {
             coordinator.Start();
-            var check = GetHelpUpdateCommand(coordinator.WelcomeWindow).ExecuteAsync(null);
             Dispatcher.UIThread.RunJobs();
 
             Assert.True(coordinator.WelcomeWindow.IsVisible);
@@ -45,10 +48,9 @@ public sealed class UpdateStartupUiTests
             Assert.Equal(0, source.CallCount);
 
             catalog.TrySetResult(SystemFontCatalog.Empty);
-            await check;
             await coordinator.AutomaticUpdateCheck;
             Assert.Equal(1, source.CallCount);
-            Assert.Single(coordinator.WelcomeWindow.OwnedWindows.OfType<UpdateCheckWindow>());
+            Assert.Empty(coordinator.WelcomeWindow.OwnedWindows);
         }
         finally
         {
@@ -115,7 +117,8 @@ public sealed class UpdateStartupUiTests
         {
             coordinator.Start();
             await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-            await coordinator.DisposeAsync();
+            coordinator.WelcomeWindow.Close();
+            await coordinator.Completion;
             await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
             result.TrySetResult(CreateRelease());
             Dispatcher.UIThread.RunJobs();
@@ -132,11 +135,11 @@ public sealed class UpdateStartupUiTests
         }
     }
 
-    /// <summary>每次应用启动至多自动查询一次，关闭开关时帮助菜单仍可手动查询。</summary>
+    /// <summary>每次应用启动至多自动查询一次，欢迎窗口不挂载任何窗口菜单。</summary>
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StartupChecksAtMostOnceAndTheWelcomeHelpMenuAlwaysAllowsManualChecks(bool automatic)
+    public async Task StartupChecksAtMostOnceWithoutAddingMenusToTheWelcomeWindow(bool automatic)
     {
         using var environment = new UiTestEnvironment();
         var source = new UpdateUiReleaseSource((_, _) => Task.FromResult<UpdateRelease?>(null));
@@ -151,18 +154,80 @@ public sealed class UpdateStartupUiTests
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(automatic ? 1 : 0, source.CallCount);
         Assert.Empty(coordinator.WelcomeWindow.OwnedWindows);
-        var manual = GetHelpUpdateCommand(coordinator.WelcomeWindow);
-        Assert.True(manual.CanExecute(null));
+        Assert.Null(NativeMenu.GetMenu(coordinator.WelcomeWindow));
+        Assert.Null(coordinator.WelcomeWindow.TitleBar.MenuContent);
 
-        await manual.ExecuteAsync(null);
-        await WaitUntilAsync(() => coordinator.WelcomeWindow.OwnedWindows.OfType<UpdateCheckWindow>().Any());
-        var window = Assert.Single(coordinator.WelcomeWindow.OwnedWindows.OfType<UpdateCheckWindow>());
-        Assert.True(window.IsVisible);
-        Assert.False(window.ViewModel.HasRelease);
-        Assert.False(string.IsNullOrWhiteSpace(window.ViewModel.Message));
-        Assert.Equal(automatic ? 2 : 1, source.CallCount);
-        await coordinator.DisposeAsync();
-        Assert.False(window.IsVisible);
+        application.UpdatePreferences(current => current with { WindowMenuOnMac = true });
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(NativeMenu.GetMenu(coordinator.WelcomeWindow));
+        Assert.Null(coordinator.WelcomeWindow.TitleBar.MenuContent);
+    }
+
+    /// <summary>更新请求等待及返回结果时，欢迎页、模态设置和新建工程窗口仍处理鼠标键盘输入。</summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingAutomaticCheckDoesNotBlockWelcomeSettingsOrProjectDialogInput(bool hasUpdate)
+    {
+        using var environment = new UiTestEnvironment();
+        var result = new TaskCompletionSource<UpdateRelease?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new UpdateUiReleaseSource((_, token) => result.Task.WaitAsync(token));
+        await using var application = new DesktopApplicationContext(new(environment.DirectoryPath),
+            new() { AutoCheckUpdates = true, WindowMenuOnMac = true }, updateReleaseSource: source);
+        await application.Initialization;
+        var shutdownCount = 0;
+        await using var coordinator = new DesktopStartupCoordinator(_ => { }, () => shutdownCount++, application);
+        coordinator.Start();
+        await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var welcome = coordinator.WelcomeWindow;
+
+        var search = UiTestActions.Find<TextBox>(welcome, "ProjectSearchInput");
+        var point = search.TranslatePoint(new(search.Bounds.Width / 2, search.Bounds.Height / 2), welcome)!.Value;
+        welcome.MouseDown(point, MouseButton.Left);
+        welcome.MouseUp(point, MouseButton.Left);
+        welcome.KeyTextInput("startup input fixture");
+        Assert.Equal("startup input fixture", welcome.ViewModel.SearchText);
+
+        UiTestActions.Click(welcome, "WelcomeSettingsButton");
+        var settings = Assert.Single(welcome.OwnedWindows.OfType<SettingsWindow>());
+        UiTestActions.SelectSettingsPage(settings, SettingsPage.UPDATES);
+        Assert.True(UiTestActions.Find<CheckBox>(settings, "AutoCheckUpdatesInput").IsChecked);
+        settings.Close();
+        await welcome.ViewModel.SettingsCommand.ExecutionTask!;
+
+        UiTestActions.Click(welcome, "WelcomeNewProjectButton");
+        var create = Assert.Single(welcome.OwnedWindows.OfType<NewProjectDialog>());
+        Assert.True(create.IsVisible);
+        UiTestActions.Click(create, "CancelButton");
+        await welcome.ViewModel.NewProjectCommand.ExecutionTask!;
+        Assert.False(welcome.ViewModel.IsBusy);
+        Assert.False(coordinator.AutomaticUpdateCheck.IsCompleted);
+
+        UiTestActions.Click(welcome, "WelcomeSettingsButton");
+        settings = Assert.Single(welcome.OwnedWindows.OfType<SettingsWindow>());
+        result.TrySetResult(hasUpdate ? CreateRelease() : null);
+        await coordinator.AutomaticUpdateCheck;
+        Dispatcher.UIThread.RunJobs();
+        UiTestActions.SelectSettingsPage(settings, SettingsPage.UPDATES);
+        Assert.True(UiTestActions.Find<CheckBox>(settings, "AutoCheckUpdatesInput").IsChecked);
+        settings.Close();
+        await welcome.ViewModel.SettingsCommand.ExecutionTask!;
+        if (hasUpdate)
+        {
+            var update = Assert.Single(welcome.OwnedWindows.OfType<UpdateCheckWindow>());
+            UiTestActions.Click(update, "UpdateCloseButton");
+            Assert.False(update.IsVisible);
+        }
+
+        UiTestActions.Click(welcome, "WelcomeNewProjectButton");
+        create = Assert.Single(welcome.OwnedWindows.OfType<NewProjectDialog>());
+        UiTestActions.Click(create, "CancelButton");
+        await welcome.ViewModel.NewProjectCommand.ExecutionTask!;
+        Assert.Equal(1, source.CallCount);
+        welcome.Close();
+        await coordinator.Completion;
+        Assert.False(welcome.IsVisible);
+        Assert.Equal(1, shutdownCount);
     }
 
     /// <summary>欢迎页的非模态更新提示允许继续打开工程，工作台可以重新查看同一发布。</summary>
@@ -191,7 +256,7 @@ public sealed class UpdateStartupUiTests
         Assert.True(coordinator.WelcomeWindow.ViewModel.NewProjectCommand.CanExecute(null));
 
         await coordinator.WelcomeWindow.ViewModel.NewProjectCommand.ExecuteAsync(null);
-        var main = Assert.IsType<AegiNext.Desktop.Views.MainWindow>(coordinator.MainWindow);
+        var main = Assert.IsType<MainWindow>(coordinator.MainWindow);
         Assert.True(main.IsVisible);
         Assert.False(coordinator.WelcomeWindow.IsVisible);
         Assert.False(welcomeUpdate.IsVisible);
@@ -213,7 +278,7 @@ public sealed class UpdateStartupUiTests
         Assert.False(workbenchUpdate.IsVisible);
     }
 
-    private static IAsyncRelayCommand GetHelpUpdateCommand(Window owner)
+    private static IAsyncRelayCommand GetHelpUpdateCommand(MainWindow owner)
     {
         var root = Assert.IsType<NativeMenu>(NativeMenu.GetMenu(owner));
         var help = Assert.Single(root.Items.OfType<NativeMenuItem>(), item => item.Header == Localization.Get("Workbench.Help"));
