@@ -7,17 +7,17 @@ namespace AegiNext.Desktop.Controls;
 /// <summary>以同一行编辑二维向量，保留两个分量的原始草稿；不拥有工程或提交事务。</summary>
 public sealed class VectorDraftInput : UserControl
 {
-    public static readonly StyledProperty<decimal?> xProperty = AvaloniaProperty.Register<VectorDraftInput, decimal?>(nameof(X), defaultBindingMode: BindingMode.TwoWay);
-    public static readonly StyledProperty<decimal?> yProperty = AvaloniaProperty.Register<VectorDraftInput, decimal?>(nameof(Y), defaultBindingMode: BindingMode.TwoWay);
-    public static readonly StyledProperty<string> xTextProperty = AvaloniaProperty.Register<VectorDraftInput, string>(nameof(XText), string.Empty, defaultBindingMode: BindingMode.TwoWay);
-    public static readonly StyledProperty<string> yTextProperty = AvaloniaProperty.Register<VectorDraftInput, string>(nameof(YText), string.Empty, defaultBindingMode: BindingMode.TwoWay);
-    public static readonly StyledProperty<decimal> minimumProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Minimum), -1000000000m);
-    public static readonly StyledProperty<decimal> maximumProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Maximum), 1000000000m);
-    public static readonly StyledProperty<decimal> incrementProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Increment), 1m);
-    public static readonly StyledProperty<string?> xFieldKeyProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(XFieldKey));
-    public static readonly StyledProperty<string?> yFieldKeyProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(YFieldKey));
-    public static readonly StyledProperty<string?> xInputNameProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(XInputName));
-    public static readonly StyledProperty<string?> yInputNameProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(YInputName));
+    public static readonly StyledProperty<decimal?> XProperty = AvaloniaProperty.Register<VectorDraftInput, decimal?>(nameof(X), defaultBindingMode: BindingMode.TwoWay);
+    public static readonly StyledProperty<decimal?> YProperty = AvaloniaProperty.Register<VectorDraftInput, decimal?>(nameof(Y), defaultBindingMode: BindingMode.TwoWay);
+    public static readonly StyledProperty<string> XTextProperty = AvaloniaProperty.Register<VectorDraftInput, string>(nameof(XText), string.Empty, defaultBindingMode: BindingMode.TwoWay);
+    public static readonly StyledProperty<string> YTextProperty = AvaloniaProperty.Register<VectorDraftInput, string>(nameof(YText), string.Empty, defaultBindingMode: BindingMode.TwoWay);
+    public static readonly StyledProperty<decimal> MinimumProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Minimum), -1000000000m);
+    public static readonly StyledProperty<decimal> MaximumProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Maximum), 1000000000m);
+    public static readonly StyledProperty<decimal> IncrementProperty = AvaloniaProperty.Register<VectorDraftInput, decimal>(nameof(Increment), 1m);
+    public static readonly StyledProperty<string?> XFieldKeyProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(XFieldKey));
+    public static readonly StyledProperty<string?> YFieldKeyProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(YFieldKey));
+    public static readonly StyledProperty<string?> XInputNameProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(XInputName));
+    public static readonly StyledProperty<string?> YInputNameProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(YInputName));
     private readonly NumericDraftInput xInput;
     private readonly NumericDraftInput yInput;
 
@@ -39,43 +39,43 @@ public sealed class VectorDraftInput : UserControl
         Content = grid;
     }
 
-    public decimal? X { get => GetValue(xProperty); set => SetValue(xProperty, value); }
-    public decimal? Y { get => GetValue(yProperty); set => SetValue(yProperty, value); }
-    public string XText { get => GetValue(xTextProperty); set => SetValue(xTextProperty, value); }
-    public string YText { get => GetValue(yTextProperty); set => SetValue(yTextProperty, value); }
-    public decimal Minimum { get => GetValue(minimumProperty); set => SetValue(minimumProperty, value); }
-    public decimal Maximum { get => GetValue(maximumProperty); set => SetValue(maximumProperty, value); }
-    public decimal Increment { get => GetValue(incrementProperty); set => SetValue(incrementProperty, value); }
+    public decimal? X { get => GetValue(XProperty); set => SetValue(XProperty, value); }
+    public decimal? Y { get => GetValue(YProperty); set => SetValue(YProperty, value); }
+    public string XText { get => GetValue(XTextProperty); set => SetValue(XTextProperty, value); }
+    public string YText { get => GetValue(YTextProperty); set => SetValue(YTextProperty, value); }
+    public decimal Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
+    public decimal Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
+    public decimal Increment { get => GetValue(IncrementProperty); set => SetValue(IncrementProperty, value); }
     public string? XFieldKey
     {
-        get => GetValue(xFieldKeyProperty);
-        set => SetValue(xFieldKeyProperty, value);
+        get => GetValue(XFieldKeyProperty);
+        set => SetValue(XFieldKeyProperty, value);
     }
     public string? YFieldKey
     {
-        get => GetValue(yFieldKeyProperty);
-        set => SetValue(yFieldKeyProperty, value);
+        get => GetValue(YFieldKeyProperty);
+        set => SetValue(YFieldKeyProperty, value);
     }
     public string? XInputName
     {
-        get => GetValue(xInputNameProperty);
-        set => SetValue(xInputNameProperty, value);
+        get => GetValue(XInputNameProperty);
+        set => SetValue(XInputNameProperty, value);
     }
     public string? YInputName
     {
-        get => GetValue(yInputNameProperty);
-        set => SetValue(yInputNameProperty, value);
+        get => GetValue(YInputNameProperty);
+        set => SetValue(YInputNameProperty, value);
     }
 
     /// <inheritdoc />
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == xFieldKeyProperty || change.Property == xInputNameProperty)
+        if (change.Property == XFieldKeyProperty || change.Property == XInputNameProperty)
         {
             xInput.Name = XInputName ?? XFieldKey;
         }
-        else if (change.Property == yFieldKeyProperty || change.Property == yInputNameProperty)
+        else if (change.Property == YFieldKeyProperty || change.Property == YInputNameProperty)
         {
             yInput.Name = YInputName ?? YFieldKey;
         }
