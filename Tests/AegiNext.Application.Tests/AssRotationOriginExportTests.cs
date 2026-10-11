@@ -99,6 +99,11 @@ public sealed class AssRotationOriginExportTests
 
         Assert.Contains("\\org(200,140)", written.Text, StringComparison.Ordinal);
         Assert.DoesNotContain(written.Diagnostics, item => item.Code == "Ass.TransformPivotAnimation");
+        var roundTrip = ImportFile(written.Text);
+        AssertGeometry(document, roundTrip);
+        Assert.DoesNotContain(roundTrip.Subtitles[0].AnimationRanges, item => item.Rotation != 0);
+        Assert.DoesNotContain(roundTrip.Layers[0].Tracks, track => track.Target.TextRangeId is not null &&
+            track.Property == AnimationProperty.ROTATION);
     }
 
     [Fact]

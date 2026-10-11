@@ -145,6 +145,56 @@ public sealed class AssRotationOriginReferenceTests
         AssertCoverage(source, written.Text, [0, 249, 250, 251, 733, 999, 1000, 1001, 1999, 2000, 2001, 3100, 3999]);
     }
 
+    /// <summary>无有效范围几何的分组不覆盖整行旋转或缩放，跨范围重置后仍保持源动画。</summary>
+    [LibassReferenceTheory]
+    [InlineData("empty", false, false)]
+    [InlineData("color", false, false)]
+    [InlineData("rotation", false, false)]
+    [InlineData("rotation", true, false)]
+    [InlineData("scale", false, false)]
+    [InlineData("scale", true, false)]
+    [InlineData("empty", false, true)]
+    [InlineData("scale", true, true)]
+    public void IdentityRangesPreserveWholeLineGeometry(string kind, bool ordered, bool animateScale)
+    {
+        var geometry = animateScale ? @"\t(500,2500,\fscx150)" : @"\org(205,155)\frz23\t(500,2500,\frz97)";
+        var source = ReferenceSubtitleProject.Script(@"{\q2\4a&HFF&\pos(240,180)" + geometry + "}Fj Fj");
+        var document = Import(source);
+        var range = new SubtitleAnimationRange(Guid.NewGuid(), 0, 2)
+        {
+            GeneratedOrigin = new("test", "letters", null, "grapheme"),
+            Scale = kind == "scale" ? new(2, 2) : new(1, 1),
+            Rotation = kind == "rotation" ? 37 : 0
+        };
+        var layer = document.Layers[0];
+        if (kind != "empty")
+        {
+            var property = kind == "color" ? AnimationProperty.FILL :
+                kind == "scale" ? AnimationProperty.SCALE : AnimationProperty.ROTATION;
+            var value = kind == "color" ? AnimationValue.FromColor(SceneColor.White) :
+                kind == "scale" ? AnimationValue.FromVector(new(1, 1)) : AnimationValue.FromScalar(0);
+            var target = new AnimationTrackTarget(property, TextRangeId: range.Id);
+            var track = ordered ? new AnimationTrack(target, [])
+            {
+                InitialValue = value,
+                Transforms = [new(Guid.NewGuid(), new(0), new(4), value)]
+            } : new(target, [new(new(0), value), new(new(4), value)]);
+            layer = layer with { Tracks = layer.Tracks.Add(track) };
+        }
+        document = document with
+        {
+            Subtitles = [document.Subtitles[0] with { AnimationRanges = [range] }],
+            Layers = [layer]
+        };
+        var written = RoundTrip(document);
+        Assert.DoesNotContain(written.Diagnostics, item => item.Code is "Ass.TextRangeGeometry" or "Ass.RangePivot");
+        if (kind == "color")
+        {
+            source = source.Replace("}Fj Fj", @"}{\1c&HFFFFFF&}Fj{\1c&H00FF00&} Fj", StringComparison.Ordinal);
+        }
+        AssertCoverage(source, written.Text, [0, 499, 733, 1500, 2499, 3100, 3999]);
+    }
+
     private static ProjectDocument Import(string source)
     {
         var parsed = AssSubtitleFormat.Parse(source, 640, 360);

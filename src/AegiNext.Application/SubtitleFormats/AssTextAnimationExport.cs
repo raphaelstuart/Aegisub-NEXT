@@ -67,7 +67,20 @@ internal sealed class AssTextAnimationExport(SubtitleLine line, ProjectLayer lay
         if (matching.Length == 1)
         {
             var range = matching[0];
-            if (range.Scale != new ScenePoint(1, 1) || range.Rotation != 0 || selected.Keys.Any(key => key.Property is AnimationProperty.SCALE or AnimationProperty.ROTATION))
+            if (!projection && RemoveIdentityGeometryTrack(selected, AnimationProperty.SCALE, new ScenePoint(1, 1)))
+            {
+                range = range with { Scale = new(1, 1) };
+            }
+            if (!projection && RemoveIdentityGeometryTrack(selected, AnimationProperty.ROTATION, 0))
+            {
+                range = range with { Rotation = 0 };
+            }
+            matching[0] = range;
+            var hasScale = range.Scale != new ScenePoint(1, 1) ||
+                selected.GetValueOrDefault((AnimationProperty.SCALE, SubtitleAnimationState.NORMAL))?.Target.TextRangeId is not null;
+            var hasRotation = range.Rotation != 0 ||
+                selected.GetValueOrDefault((AnimationProperty.ROTATION, SubtitleAnimationState.NORMAL))?.Target.TextRangeId is not null;
+            if (hasScale || hasRotation)
             {
                 Report("Ass.TextRangeGeometry", "原生文字范围在排版后变换，ASS 在字形布局中应用缩放和旋转，边缘、阴影及片段位置可能不同。");
             }
@@ -75,14 +88,19 @@ internal sealed class AssTextAnimationExport(SubtitleLine line, ProjectLayer lay
             {
                 Report("Ass.TransformScale", "ASS 不能保留文字范围的镜像，已省略负缩放分量并保留可转换的分量。");
             }
-            if (range.Pivot != SubtitleAnimationPivot.SUBTITLE_ANCHOR &&
-                (range.Scale != new ScenePoint(1, 1) || range.Rotation != 0 || selected.Keys.Any(key => key.Property is AnimationProperty.SCALE or AnimationProperty.ROTATION)))
+            if (range.Pivot != SubtitleAnimationPivot.SUBTITLE_ANCHOR && (hasScale || hasRotation))
             {
                 Report("Ass.RangePivot", "文字范围使用独立中心轴心，ASS 只能采用字幕共享轴心；范围几何位置可能不同。");
             }
-            result.Append("\\fscx").Append(Number((range.Scale.X < 0 ? 1 : range.Scale.X) * scale.X * 100))
-                .Append("\\fscy").Append(Number((range.Scale.Y < 0 ? 1 : range.Scale.Y) * scale.Y * 100))
-                .Append("\\frz").Append(Number(-(range.Rotation + rotation)));
+            if (projection || hasScale)
+            {
+                result.Append("\\fscx").Append(Number((range.Scale.X < 0 ? 1 : range.Scale.X) * scale.X * 100))
+                    .Append("\\fscy").Append(Number((range.Scale.Y < 0 ? 1 : range.Scale.Y) * scale.Y * 100));
+            }
+            if (projection || hasRotation)
+            {
+                result.Append("\\frz").Append(Number(-(range.Rotation + rotation)));
+            }
         }
         foreach (var pair in selected)
         {
@@ -168,6 +186,25 @@ internal sealed class AssTextAnimationExport(SubtitleLine line, ProjectLayer lay
                 layer.AnimationOffset + layer.End - layer.Start, line.Id, diagnostics, forceSampling));
         }
         return result.ToString();
+    }
+
+    private bool RemoveIdentityGeometryTrack(Dictionary<(AnimationProperty Property, SubtitleAnimationState State), AnimationTrack> selected,
+        AnimationProperty property, AnimationValue identity)
+    {
+        var key = (property, SubtitleAnimationState.NORMAL);
+        if (selected.GetValueOrDefault(key) is not { Target.TextRangeId: not null } track ||
+            !AssMoveConversion.TryConstant(track, out var value) || value != identity)
+        {
+            return false;
+        }
+        selected.Remove(key);
+        var whole = layer.Tracks.FirstOrDefault(candidate => candidate.Property == property &&
+            candidate.Target.TextRangeId is null && candidate.Target.State == SubtitleAnimationState.NORMAL && Handles(candidate));
+        if (whole is not null)
+        {
+            selected[key] = whole;
+        }
+        return true;
     }
 
     private string ValueTags(AnimationProperty property, AnimationValue value, int mask, AnimationTransformMode mode,
