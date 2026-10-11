@@ -185,7 +185,8 @@ public static class AssSubtitleFormat
             }
             var parsed = new AssTextParser(line, styles, definition.Secondary, scaleX, scaleY, canvasWidth: targetWidth,
                 canvasHeight: targetHeight, wrapStyle: wrapStyle, blurScaleX: blurScaleX, blurScaleY: blurScaleY,
-                blurUsesPlayRes: blurUsesPlayRes, resolution: resolution, fontWeightResolver: fontWeightResolver).Parse(Required(fields, "Text"));
+                blurUsesPlayRes: blurUsesPlayRes, resolution: resolution, fontWeightResolver: fontWeightResolver,
+                dialogueMargins: new(marginL * scaleX, marginR * scaleX, marginV * scaleY)).Parse(Required(fields, "Text"));
             var importedLine = parsed.Line;
             lines.Add(importedLine);
             clips.Add(new(importedLine, parsed.Mask, parsed.MaskTracks.AddRange(parsed.PlacementTracks).AddRange(parsed.OpacityTracks).AddRange(parsed.NumericTracks), parsed.ContentOffset)

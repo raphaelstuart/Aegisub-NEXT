@@ -10,7 +10,8 @@ namespace AegiNext.Application.SubtitleFormats;
 internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<string, AssStyleDefinition> styles,
     SceneColor secondary, double scaleX = 1, double scaleY = 1, bool projectSource = false, int canvasWidth = 1920, int canvasHeight = 1080,
     int wrapStyle = 0, double? blurScaleX = null, double? blurScaleY = null, bool blurUsesPlayRes = true,
-    AssResolutionContext? resolution = null, bool projectAnimations = false, IAssFontWeightResolver? fontWeightResolver = null)
+    AssResolutionContext? resolution = null, bool projectAnimations = false, IAssFontWeightResolver? fontWeightResolver = null,
+    SubtitleMargins? dialogueMargins = null)
 {
     private readonly AssResolutionContext borderResolution = resolution ?? new(scaleX, scaleY);
     private readonly AssMaskParser maskParser = new(original.End - original.Start, scaleX, scaleY, canvasWidth, canvasHeight);
@@ -155,7 +156,18 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
         FlushKaraoke();
         if (!projectSource)
         {
-            lineStyle = lineStyle with { WrapMode = currentWrapStyle == 2 ? SubtitleWrapMode.NO_WRAP : SubtitleWrapMode.NATURAL };
+            var margins = resetStyle.Margins;
+            if (dialogueMargins is { } overrides)
+            {
+                margins = new(overrides.Left == 0 ? margins.Left : overrides.Left,
+                    overrides.Right == 0 ? margins.Right : overrides.Right,
+                    overrides.Vertical == 0 ? margins.Vertical : overrides.Vertical);
+            }
+            lineStyle = lineStyle with
+            {
+                WrapMode = currentWrapStyle == 2 ? SubtitleWrapMode.NO_WRAP : SubtitleWrapMode.NATURAL,
+                Margins = margins
+            };
             if (currentWrapStyle is 0 or 3)
             {
                 Report("Ass.WrapModeApproximation", "ASS 智能均衡换行已转换为原生自然换行，行宽分配可能不同。", 0, 0);
