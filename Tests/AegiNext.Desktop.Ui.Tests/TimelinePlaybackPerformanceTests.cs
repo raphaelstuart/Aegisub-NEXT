@@ -158,6 +158,10 @@ public sealed class TimelinePlaybackPerformanceTests
                 var beforeDiagnostics = controller.PipelineDiagnostics;
                 var wheelMilliseconds = new List<double>();
                 var renderMilliseconds = new List<double>();
+                var refreshMilliseconds = new List<double>();
+                var dispatchMilliseconds = new List<double>();
+                var wheelAllocatedBytes = new List<long>();
+                var refreshAllocatedBytes = new List<long>();
                 var uiAllocatedBytes = new List<long>();
                 var started = Stopwatch.GetTimestamp();
                 var processAllocatedBefore = GC.GetTotalAllocatedBytes(true);
@@ -165,16 +169,24 @@ public sealed class TimelinePlaybackPerformanceTests
                 while (Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(2))
                 {
                     var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                    var dispatchStarted = Stopwatch.GetTimestamp();
                     PumpUi();
+                    dispatchMilliseconds.Add(Stopwatch.GetElapsedTime(dispatchStarted).TotalMilliseconds);
                     if (scroll || zoom)
                     {
+                        var wheelAllocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                         var wheelStarted = Stopwatch.GetTimestamp();
                         var verticalDelta = iteration % 5 == 0 ? (iteration % 60 < 30 ? -1 : 1) : 0;
                         window.MouseWheel(point, zoom ? new Vector(0, iteration % 24 < 12 ? 1 : -1) : new Vector(-1, verticalDelta),
                             zoom ? RawInputModifiers.Control : RawInputModifiers.None);
                         wheelMilliseconds.Add(Stopwatch.GetElapsedTime(wheelStarted).TotalMilliseconds);
+                        wheelAllocatedBytes.Add(GC.GetAllocatedBytesForCurrentThread() - wheelAllocatedBefore);
                     }
+                    var refreshStarted = Stopwatch.GetTimestamp();
+                    var refreshAllocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                     session.Tick();
+                    refreshMilliseconds.Add(Stopwatch.GetElapsedTime(refreshStarted).TotalMilliseconds);
+                    refreshAllocatedBytes.Add(GC.GetAllocatedBytesForCurrentThread() - refreshAllocatedBefore);
                     var renderStarted = Stopwatch.GetTimestamp();
                     Render(window, timeline);
                     renderMilliseconds.Add(Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds);
@@ -206,7 +218,11 @@ public sealed class TimelinePlaybackPerformanceTests
                     ExpiredInCallback = ReadCounter(afterDiagnostics, "ExpiredInCallback") - ReadCounter(beforeDiagnostics, "ExpiredInCallback"),
                     ProcessAllocatedBytes = GC.GetTotalAllocatedBytes(true) - processAllocatedBefore,
                     UiThreadAllocatedBytes = uiAllocatedBytes.Sum(),
+                    WheelAllocatedBytes = wheelAllocatedBytes.Sum(),
+                    SessionRefreshAllocatedBytes = refreshAllocatedBytes.Sum(),
                     WheelDispatch = Summarize(wheelMilliseconds),
+                    SessionRefresh = Summarize(refreshMilliseconds),
+                    DispatchPump = Summarize(dispatchMilliseconds),
                     RenderTick = Summarize(renderMilliseconds),
                     UiQueue = Summarize(dispatches.Where(sample => sample.Phase == phase &&
                         sample.Timestamp >= started && sample.Timestamp <= ended).Select(sample => sample.Milliseconds)),

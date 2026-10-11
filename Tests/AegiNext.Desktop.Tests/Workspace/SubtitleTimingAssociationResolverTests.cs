@@ -122,10 +122,10 @@ public sealed class SubtitleTimingAssociationResolverTests
         };
     }
 
-    private static IReadOnlyDictionary<Guid, SubtitleStylePreset> Resolve(ProjectDocument document, Guid subtitleId,
+    private static Dictionary<Guid, SubtitleStylePreset> Resolve(ProjectDocument document, Guid subtitleId,
         params SubtitleStylePreset[] presets)
     {
-        return AegiNext.Desktop.Workspace.SubtitleTimingAssociationResolver.Resolve(document,
-            new HashSet<Guid> { subtitleId }, presets);
+        return AegiNext.Desktop.Workspace.SubtitleTimingAssociationResolver.Resolve(new(document), presets)
+            .Where(pair => pair.Key == subtitleId).ToDictionary();
     }
 }

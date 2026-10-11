@@ -14,6 +14,7 @@ internal sealed partial class WorkbenchSession
     private readonly Func<string, int, MediaTime, CancellationToken, Task<VideoTimingIndex>> videoTimingProbe;
     private Task timingProcessingCompletion = Task.CompletedTask;
     private VideoTimingCacheEntry? videoTimingCache;
+    private SubtitleTimingAssociationCacheEntry? timingAssociationCache;
 
     private void OnTimingLibrariesBusyChanged(object? sender, EventArgs e)
     {
@@ -23,10 +24,54 @@ internal sealed partial class WorkbenchSession
         }
     }
 
-    internal bool HasApplicableSelectedTimingPostProcessor => !closing && !IsProjectBusy && !styles.IsBusy &&
-        SubtitleTimingAssociationResolver.Resolve(editor.Snapshot, SelectedTimelineSubtitleIds(editor.Snapshot),
-            styleLibrary.Snapshot.Presets).Values.Any(preset =>
-                preset.TimingPostProcessor is { } options && HasTimingStages(options));
+    internal bool HasApplicableSelectedTimingPostProcessor
+    {
+        get
+        {
+            if (closing || IsProjectBusy || styles.IsBusy)
+            {
+                return false;
+            }
+            var clips = ClipIndex;
+            var associations = TimingAssociations;
+            if (SelectedLayerId is { } primary && HasApplicableTimingAssociation(clips, associations, primary))
+            {
+                return true;
+            }
+            foreach (var id in ViewModel.Effects.SelectedIds)
+            {
+                if (id != SelectedLayerId && HasApplicableTimingAssociation(clips, associations, id))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private IReadOnlyDictionary<Guid, SubtitleStylePreset> TimingAssociations
+    {
+        get
+        {
+            var clips = ClipIndex;
+            var presets = styleLibrary.Snapshot;
+            if (timingAssociationCache is null || !ReferenceEquals(timingAssociationCache.Document, clips.Document) ||
+                !ReferenceEquals(timingAssociationCache.Presets, presets))
+            {
+                timingAssociationCache = new(clips.Document, presets,
+                    SubtitleTimingAssociationResolver.Resolve(clips, presets.Presets));
+            }
+            return timingAssociationCache.Associations;
+        }
+    }
+
+    private static bool HasApplicableTimingAssociation(ProjectClipIndex clips,
+        IReadOnlyDictionary<Guid, SubtitleStylePreset> associations, Guid clipId)
+    {
+        return clips.TryGetClip(clipId, out var layer) && layer.Kind == LayerKind.SUBTITLE &&
+            layer.SubtitleId is { } subtitleId && associations.TryGetValue(subtitleId, out var preset) &&
+            preset.TimingPostProcessor is { } options && HasTimingStages(options);
+    }
 
     internal Task<int> ApplySelectedTimingPostProcessorAsync(CancellationToken cancellationToken = default)
     {
@@ -54,12 +99,13 @@ internal sealed partial class WorkbenchSession
         {
             PrepareTimingProcessing(cancellationToken);
             var source = editor.Snapshot;
+            var selected = options is null ? SelectedTimelineSubtitleIds(source).ToImmutableHashSet() :
+                onlySelected ? SelectedSubtitleIds.ToImmutableHashSet() : null;
             var task = new TimingPostProcessingTask(this, source, TaskInputRevision, options,
                 styleNames?.ToImmutableHashSet(StringComparer.Ordinal),
-                options is null ? SelectedTimelineSubtitleIds(source).ToImmutableHashSet() :
-                    onlySelected ? SelectedSubtitleIds.ToImmutableHashSet() : null,
-                options is null ? SubtitleTimingAssociationResolver.Resolve(source, SelectedTimelineSubtitleIds(source),
-                    styleLibrary.Snapshot.Presets).Where(pair => HasTimingStages(pair.Value.TimingPostProcessor!))
+                selected,
+                options is null ? TimingAssociations.Where(pair => selected!.Contains(pair.Key) &&
+                    HasTimingStages(pair.Value.TimingPostProcessor!))
                     .ToDictionary() : null);
             var handle = applicationContext.Tasks.Submit(task);
             timingProcessingCompletion = handle.Completion;
