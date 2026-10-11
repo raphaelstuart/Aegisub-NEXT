@@ -48,12 +48,12 @@ internal sealed class AssRotationOriginParser(Guid subtitleId, double scaleX, do
                 Apply(tag.Value, sourceStart, sourceLength);
                 continue;
             }
-            var arguments = AssOverrideTags.Arguments(tag.Value);
-            if (arguments.Length is < 1 or > 4 || !arguments[^1].StartsWith('\\'))
+            var tagList = TransformTagList(tag.Value);
+            if (tagList is null)
             {
                 continue;
             }
-            foreach (var child in AssOverrideTags.Parse(arguments[^1]).Reverse())
+            foreach (var child in AssOverrideTags.Parse(tagList).Reverse())
             {
                 if (child.Name is "org" or "t")
                 {
@@ -79,16 +79,22 @@ internal sealed class AssRotationOriginParser(Guid subtitleId, double scaleX, do
             {
                 return false;
             }
-            var arguments = AssOverrideTags.Arguments(tag.Value);
-            if (arguments.Length is < 1 or > 4 || !arguments[^1].StartsWith('\\'))
+            var tagList = TransformTagList(tag.Value);
+            if (tagList is null)
             {
                 return false;
             }
-            foreach (var child in AssOverrideTags.Parse(arguments[^1]))
+            foreach (var child in AssOverrideTags.Parse(tagList))
             {
                 pending.Push(child);
             }
         }
         return hasOrigin;
+    }
+
+    private static string? TransformTagList(string value)
+    {
+        var arguments = AssOverrideTags.Arguments(value);
+        return arguments.Length is >= 1 and <= 4 && arguments[^1].Contains('\\') ? arguments[^1] : null;
     }
 }
