@@ -19,6 +19,7 @@ internal sealed class AssEventConversionContext
     private readonly ScenePoint placementOffset;
     private readonly ScenePoint position;
     private readonly AssLinearMove? move;
+    private readonly AssRotationOriginExport? rotationOrigin;
     private readonly AssOpacityEnvelope? opacity;
     private readonly bool hasPlacement;
     private readonly bool convertedPath;
@@ -31,6 +32,7 @@ internal sealed class AssEventConversionContext
     internal AssEventConversionContext(ProjectDocument document, ProjectLayer layer, SubtitleLine line,
         ISubtitlePlacementMeasurer? measurer, ImmutableArray<SubtitleFormatDiagnostic>.Builder diagnostics)
     {
+        var originalLayer = layer;
         textAnimation = new(line, layer, diagnostics);
         layer = layer with { Tracks = layer.Tracks.Where(track => !AssTextAnimationExport.Handles(track)).ToImmutableArray() };
         this.layer = layer;
@@ -145,6 +147,19 @@ internal sealed class AssEventConversionContext
         {
             Report("Ass.PlacementMeasurement", "未提供字体排版测量，定位使用九宫格边距近似；无法补偿真实字形边界和自定义文字轴心。");
         }
+        if (hasPlacement)
+        {
+            rotationOrigin = AssRotationOriginExport.Create(originalLayer, line, basis, delta, scale, rotation,
+                position, move, convertedPath, needsMeasurement, measurer is not null, out var originReason);
+            if (rotationOrigin is not null)
+            {
+                AssExportPrecision.AddNumbers(line.Id, diagnostics, rotationOrigin.Origin.X, rotationOrigin.Origin.Y);
+            }
+            else if (transform.Pivot != default)
+            {
+                Report("Ass.RotationOrigin", $"当前几何组合不能生成可逆的 ASS org 补偿（{originReason}），已采用原有位置、轴心与动画转换。");
+            }
+        }
         if (AcceptScale(scaleXAnimation, delta.X, needsMeasurement && measurer is null && stylePosition.Pivot != alignmentPivot))
         {
             scale = scale with { X = scaleXAnimation!.Initial };
@@ -159,7 +174,7 @@ internal sealed class AssEventConversionContext
         }
         if (rotationAnimation is not null)
         {
-            if (rotationAnimation.Operations.IsEmpty || Math.Abs(delta.X * scale.X) < 1e-9 && Math.Abs(delta.Y * scale.Y) < 1e-9 &&
+            if (rotationOrigin is not null || rotationAnimation.Operations.IsEmpty || Math.Abs(delta.X * scale.X) < 1e-9 && Math.Abs(delta.Y * scale.Y) < 1e-9 &&
                 !(needsMeasurement && measurer is null && stylePosition.Pivot != alignmentPivot))
             {
                 AddNumeric(rotationAnimation);
@@ -383,6 +398,10 @@ internal sealed class AssEventConversionContext
         {
             return alignment + "}";
         }
+        if (rotationOrigin is not null)
+        {
+            alignment += "\\org(" + Point(rotationOrigin.Origin) + ")";
+        }
         var origin = new MediaTime((sample.Start + timeOffset).ToTimestamp(new(1, 100), MediaTimeRounding.FLOOR).Value, 100) -
             timeOffset - line.Start + layer.AnimationOffset;
         var end = new MediaTime((sample.End + timeOffset).ToTimestamp(new(1, 100), MediaTimeRounding.CEILING).Value, 100) -
@@ -439,6 +458,10 @@ internal sealed class AssEventConversionContext
 
     private ScenePoint Place(ScenePoint point)
     {
+        if (rotationOrigin is not null)
+        {
+            return rotationOrigin.MapPosition(point);
+        }
         return new(placementOffset.X + point.X, placementOffset.Y + point.Y);
     }
 

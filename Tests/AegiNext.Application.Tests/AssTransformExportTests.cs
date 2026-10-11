@@ -28,7 +28,9 @@ public sealed class AssTransformExportTests
         var written = AssSubtitleFormat.Write(document, placementMeasurer: measurer);
         var body = Assert.Single(Bodies(written.Text));
 
-        Assert.Contains("\\pos(528,540)", body, StringComparison.Ordinal);
+        Assert.Contains("\\org(620,430)", body, StringComparison.Ordinal);
+        Assert.Contains("\\pos(730,522)", body, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(body, @"\\org\("));
         Assert.Single(Regex.Matches(body, @"\\pos\("));
         var resets = Regex.Matches(body, @"\{\\r[^}]*\}");
         Assert.Equal(2, resets.Count);
