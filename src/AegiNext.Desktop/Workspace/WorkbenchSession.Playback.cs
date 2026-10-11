@@ -5,6 +5,8 @@ namespace AegiNext.Desktop.Workspace;
 
 internal sealed partial class WorkbenchSession
 {
+    internal PreviewInteractionDiagnostics InteractionDiagnostics { get; } = new();
+
     internal void SetInteractiveSeeking(bool value) => playback.SetInteractive(value);
     internal void CancelInteractiveSeeking() => playback.Invalidate();
     internal bool IsTransportPlaybackRequested => playback.IsPlaybackRequested;

@@ -26,6 +26,7 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
         }
         if (value)
         {
+            session.InteractionDiagnostics.Begin();
             interactiveResumePlayback = IsPlaybackRequested;
             interactiveTarget = null;
             IsInteractive = true;
@@ -38,6 +39,7 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
         }
         else
         {
+            session.InteractionDiagnostics.Record("released");
             var finalTarget = interactiveTarget ?? queuedTarget ?? PendingPosition;
             var resumePlayback = interactiveResumePlayback;
             IsInteractive = false;
@@ -75,6 +77,10 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
 
     internal void Invalidate()
     {
+        if (IsInteractive)
+        {
+            session.InteractionDiagnostics.Record("cancelled");
+        }
         revision++;
         PendingPosition = null;
         queuedTarget = null;
@@ -123,6 +129,7 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
             queuedTarget = null;
         }
         PendingPosition = target;
+        session.InteractionDiagnostics.Accept(target);
         session.ViewModel.Error = null;
         session.Tick();
         try
@@ -184,6 +191,7 @@ internal sealed class PlaybackSeekingCoordinator(WorkbenchSession session, Video
             return SeekFromUserAsync(target);
         }
         interactiveTarget = queuedTarget = PendingPosition = target;
+        session.InteractionDiagnostics.Input(target);
         session.Tick();
         return Task.CompletedTask;
     }

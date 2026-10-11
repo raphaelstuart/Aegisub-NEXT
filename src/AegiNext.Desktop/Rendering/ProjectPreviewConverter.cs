@@ -7,6 +7,7 @@ using AegiNext.Rendering.Fonts;
 using AegiNext.Desktop.Settings;
 using Avalonia.OpenGL;
 using Avalonia.Platform;
+using System.Diagnostics;
 
 namespace AegiNext.Desktop.Rendering;
 
@@ -25,6 +26,7 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
     private AegiNext.Core.Projects.ProjectDocument? failedDocument;
     private bool disposed;
     internal bool UsesGpu => graphics is not null;
+    internal Action<string, long>? StageMeasured { get; set; }
 
     internal ProjectPreviewConverter(Func<ProjectPreviewState> getState, Action<Exception?>? reportError = null,
         PreviewFrameCatalog? previewFrames = null, Func<SystemFontCatalog?>? fontCatalog = null,
@@ -39,6 +41,20 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
 
     public SdrVideoFrame Convert(IVideoFrame frame, CancellationToken cancellationToken = default)
     {
+        var measured = StageMeasured;
+        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
+        try
+        {
+            return ConvertCore(frame, cancellationToken);
+        }
+        finally
+        {
+            measured?.Invoke("ConvertAndCompose", Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private SdrVideoFrame ConvertCore(IVideoFrame frame, CancellationToken cancellationToken)
+    {
         ObjectDisposedException.ThrowIf(disposed, this);
         var state = getState();
         var quality = PreviewQualityOptions.GetEffectiveQuality(state.Quality, state.IsInteractive);
@@ -47,7 +63,17 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
             activeConverter = new(PreviewQualityOptions.Get(quality));
             converters.Add(quality, activeConverter);
         }
-        var background = activeConverter.Convert(frame, cancellationToken);
+        SdrVideoFrame background;
+        var measured = StageMeasured;
+        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
+        try
+        {
+            background = activeConverter.Convert(frame, cancellationToken);
+        }
+        finally
+        {
+            measured?.Invoke("BackgroundConversion", Stopwatch.GetTimestamp() - started);
+        }
         var document = state.Document;
         var timestamp = frame.Info.PresentationTimestamp ?? frame.Info.BestEffortTimestamp
             ?? throw new InvalidDataException("视频帧缺少显示时间。");
@@ -90,6 +116,21 @@ internal sealed class ProjectPreviewConverter : IVideoPreviewConverter
     }
 
     private SdrVideoFrame ComposeFrame(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
+        CancellationToken cancellationToken)
+    {
+        var measured = StageMeasured;
+        var started = measured is null ? 0 : Stopwatch.GetTimestamp();
+        try
+        {
+            return ComposeFrameCore(background, state, time, cancellationToken);
+        }
+        finally
+        {
+            measured?.Invoke("Compose", Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private SdrVideoFrame ComposeFrameCore(SdrVideoFrame background, ProjectPreviewState state, MediaTime time,
         CancellationToken cancellationToken)
     {
         using var current = graphics?.MakeCurrent();

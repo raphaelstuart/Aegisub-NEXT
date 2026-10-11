@@ -690,6 +690,10 @@ internal sealed partial class WorkbenchSession : IAsyncDisposable
                 ? update with { BackgroundFrame = update.BackgroundFrame ?? identity?.Background ?? frame, CompositionDocument = identity?.Document, CompositionTime = identity?.Time, IsInteractiveComposition = identity?.Interactive ?? false }
                 : update;
             PreviewUpdated?.Invoke(this, presented);
+            if (update.Frame is not null)
+            {
+                InteractionDiagnostics.Record("delivered", update.Snapshot.PresentedFrameTime, update.Snapshot.PresentedFrameEnd);
+            }
             Tick();
         }
     }
