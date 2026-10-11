@@ -12,6 +12,7 @@ using AegiNext.Desktop.Controls;
 using AegiNext.Desktop.Shortcuts;
 using AegiNext.Desktop.Views;
 using AegiNext.Desktop.Workspace;
+using AegiNext.Media.Analysis;
 using AegiNext.Media.Decoding;
 using AegiNext.Media.Playback;
 using AegiNext.Media.Preview;
@@ -37,7 +38,7 @@ public sealed class TimelinePlaybackPerformanceTests
     public static bool IsPerformanceMeasurementEnabled =>
         Environment.GetEnvironmentVariable("AEGINEXT_RUN_TIMELINE_PERFORMANCE_TESTS") == "1";
 
-    /// <summary>测量连续播放、真实滚轮路由和 F8 入口，保留原生资源回收与有效呈现区间断言。</summary>
+    /// <summary>测量连续播放、滚轮事件路由和 F8 入口，保留原生资源回收与有效呈现区间断言。</summary>
     [AvaloniaFact(SkipUnless = nameof(IsPerformanceMeasurementEnabled),
         Skip = "Requires AEGINEXT_RUN_TIMELINE_PERFORMANCE_TESTS=1 and an absolute AEGINEXT_TIMELINE_PERFORMANCE_OUTPUT JSON path.")]
     public async Task NativePlaybackWithTimelineScrollingAndTimingEntryProducesRepeatableMeasurements()
@@ -46,6 +47,7 @@ public sealed class TimelinePlaybackPerformanceTests
             ?? throw new InvalidOperationException("AEGINEXT_TIMELINE_PERFORMANCE_OUTPUT must name an absolute JSON path.");
         Assert.True(Path.IsPathFullyQualified(reportPath));
         using var environment = new UiTestEnvironment();
+        using var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         var mediaPath = await CreateMediaAsync(environment.DirectoryPath);
         var document = CreateDocument();
         var projectPath = Path.Combine(environment.DirectoryPath, "timeline-performance.aeginext");
@@ -123,6 +125,37 @@ public sealed class TimelinePlaybackPerformanceTests
             playbackFollowEnabledAfterScroll = session.ViewModel.Timeline.IsPlaybackFollowEnabled;
             await MeasurePlaybackPhaseAsync("PlayingZoom", false, true);
 
+            var model = session.ViewModel.Timeline;
+            var navigationDocument = session.DocumentSnapshot;
+            var spectrum = new SpectrogramData(2048, 128, MediaTime.Zero, new(30, 2048),
+                [.. Enumerable.Range(0, 2048 * 128).Select(index => (byte)(index % 256))]);
+            var waveform = new WaveformData(new(MediaTime.Zero, 1024, 2048),
+                [.. Enumerable.Range(0, 2048).SelectMany(index => new[] { -0.2f - index % 5 * 0.1f, 0.3f + index % 7 * 0.1f })]);
+            model.AudioDuration = new(30);
+            model.Spectrogram = spectrum;
+            model.Waveform = waveform;
+            session.SelectCue(document.Subtitles[0].Id);
+            Assert.Equal(document.Subtitles[0].Id, session.SelectedCueId);
+            foreach (var scaling in new[] { 1d, 2d })
+            {
+                window.SetRenderScaling(scaling);
+                model.Viewport = timeline.Viewport with { StartSeconds = 0, PixelsPerSecond = 160 };
+                Render(window, timeline);
+                point = timeline.TranslatePoint(new(timeline.HeaderWidth + 100, timeline.RulerHeight + 25), window)!.Value;
+                Assert.Same(timeline, window.InputHitTest(point));
+                await MeasurePlaybackPhaseAsync($"PlayingSelectedScrollWithAudioGraphs{scaling:0}x", true, oscillate: true);
+                await MeasurePlaybackPhaseAsync($"PlayingSelectedZoomWithAudioGraphs{scaling:0}x", false, true);
+                Assert.True(timeline.ViewStart + timeline.VisibleDuration < 30);
+                Assert.Same(navigationDocument, session.DocumentSnapshot);
+                Assert.Same(spectrum, model.Spectrogram);
+                Assert.Same(waveform, model.Waveform);
+                Assert.Equal(new MediaTime(30), model.AudioDuration);
+                Assert.True(timeline.IsSpectrumVisible);
+                Assert.True(timeline.IsWaveformVisible);
+            }
+            window.SetRenderScaling(1);
+            Assert.True(session.SelectTrack(document.Tracks[0].Id));
+
             await PumpUntilCompletedAsync(controller.PauseAsync());
             Volatile.Write(ref currentPhase, "TimingEntryPaused");
             for (var index = 0; index <= TIMING_SAMPLE_COUNT; index++)
@@ -152,12 +185,14 @@ public sealed class TimelinePlaybackPerformanceTests
                 Assert.True(sample.Snapshot.PresentedAtPosition < sample.Snapshot.PresentedFrameEnd);
             });
 
-            async Task MeasurePlaybackPhaseAsync(string phase, bool scroll, bool zoom = false)
+            async Task MeasurePlaybackPhaseAsync(string phase, bool scroll, bool zoom = false, bool oscillate = false)
             {
                 Volatile.Write(ref currentPhase, phase);
                 var beforeDiagnostics = controller.PipelineDiagnostics;
                 var wheelMilliseconds = new List<double>();
                 var renderMilliseconds = new List<double>();
+                var headlessRenderMilliseconds = new List<double>();
+                var timelineRasterMilliseconds = new List<double>();
                 var refreshMilliseconds = new List<double>();
                 var dispatchMilliseconds = new List<double>();
                 var wheelAllocatedBytes = new List<long>();
@@ -176,11 +211,16 @@ public sealed class TimelinePlaybackPerformanceTests
                     {
                         var wheelAllocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                         var wheelStarted = Stopwatch.GetTimestamp();
-                        var verticalDelta = iteration % 5 == 0 ? (iteration % 60 < 30 ? -1 : 1) : 0;
-                        window.MouseWheel(point, zoom ? new Vector(0, iteration % 24 < 12 ? 1 : -1) : new Vector(-1, verticalDelta),
-                            zoom ? RawInputModifiers.Control : RawInputModifiers.None);
+                        var horizontalDelta = oscillate && iteration % 40 >= 20 ? 1 : -1;
+                        var verticalDelta = !oscillate && iteration % 5 == 0 ? (iteration % 60 < 30 ? -1 : 1) : 0;
+                        var wheel = new PointerWheelEventArgs(timeline, pointer, window, point,
+                            (ulong)Stopwatch.GetElapsedTime(started).TotalMilliseconds, new(),
+                            zoom ? KeyModifiers.Control : KeyModifiers.None,
+                            zoom ? new Vector(0, iteration % 24 < 12 ? 1 : -1) : new Vector(horizontalDelta, verticalDelta));
+                        timeline.RaiseEvent(wheel);
                         wheelMilliseconds.Add(Stopwatch.GetElapsedTime(wheelStarted).TotalMilliseconds);
                         wheelAllocatedBytes.Add(GC.GetAllocatedBytesForCurrentThread() - wheelAllocatedBefore);
+                        Assert.True(wheel.Handled);
                     }
                     var refreshStarted = Stopwatch.GetTimestamp();
                     var refreshAllocatedBefore = GC.GetAllocatedBytesForCurrentThread();
@@ -188,8 +228,10 @@ public sealed class TimelinePlaybackPerformanceTests
                     refreshMilliseconds.Add(Stopwatch.GetElapsedTime(refreshStarted).TotalMilliseconds);
                     refreshAllocatedBytes.Add(GC.GetAllocatedBytesForCurrentThread() - refreshAllocatedBefore);
                     var renderStarted = Stopwatch.GetTimestamp();
-                    Render(window, timeline);
+                    var render = Render(window, timeline);
                     renderMilliseconds.Add(Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds);
+                    headlessRenderMilliseconds.Add(render.HeadlessMilliseconds);
+                    timelineRasterMilliseconds.Add(render.TimelineMilliseconds);
                     uiAllocatedBytes.Add(GC.GetAllocatedBytesForCurrentThread() - allocatedBefore);
                     iteration++;
                     var remaining = TimeSpan.FromMilliseconds(iteration * 1000d / 60) - Stopwatch.GetElapsedTime(started);
@@ -224,6 +266,8 @@ public sealed class TimelinePlaybackPerformanceTests
                     SessionRefresh = Summarize(refreshMilliseconds),
                     DispatchPump = Summarize(dispatchMilliseconds),
                     RenderTick = Summarize(renderMilliseconds),
+                    HeadlessRenderTick = Summarize(headlessRenderMilliseconds),
+                    TimelineRaster = Summarize(timelineRasterMilliseconds),
                     UiQueue = Summarize(dispatches.Where(sample => sample.Phase == phase &&
                         sample.Timestamp >= started && sample.Timestamp <= ended).Select(sample => sample.Milliseconds)),
                     PresentedFrameInterval = Summarize(intervals),
@@ -315,8 +359,9 @@ public sealed class TimelinePlaybackPerformanceTests
                 RuntimeIdentifier = RuntimeInformation.RuntimeIdentifier,
                 OperatingSystem = RuntimeInformation.OSDescription,
                 Configuration = "Run the same harness in Release before and after the change.",
-                MeasurementBoundary = "Real FFmpeg/native decoder and SDR converter, system playback clock, actual MainWindow and timeline wheel routing, Skia Headless render ticks and explicit RenderTargetBitmap.Render of the timeline on each measured iteration. Controller and workspace callbacks use a test-owned queue drained on the real UI thread, bounded to queue.Count captured at each pump entry. Measurement loops do not drain the Avalonia dispatcher. This is a manually pumped Headless bridge, not macOS DispatcherPriority.Render scheduling. Does not measure physical touchpad, OS window compositor or native display refresh. Subtitle scene composition is not included in the injected SDR converter.",
+                MeasurementBoundary = "Real FFmpeg/native decoder and SDR converter, system playback clock, actual MainWindow with hit-tested timeline and routed PointerWheelEventArgs, and explicit timeline drawing into a RenderTargetBitmap at the window render scaling on each measured iteration. A Headless render pulse is also recorded, but is not guaranteed to compose the whole window without a dispatcher drain. Measured playback loops do not use Headless MouseWheel, whose pre/post input pumps repeatedly drain dispatcher jobs and render the whole window. Controller and workspace callbacks use a test-owned queue drained on the real UI thread, bounded to queue.Count captured at each pump entry. Setup and F8/F9 measurements use Headless helpers. This is a manually pumped Headless bridge, not macOS DispatcherPriority.Render scheduling. Does not measure physical touchpad, OS window compositor, complete window rendering or native display refresh. Subtitle scene composition is not included in the injected SDR converter.",
                 Fixture = new { Codec = "h264", Width = 1920, Height = 1080, FramesPerSecond = 60, DurationSeconds = 30, AudioStreams = 0 },
+                AudioGraphFixture = "Selected navigation phases use synthetic 2048-bucket waveform and 2048x128 spectrogram data over the visible media range, at 1x and 2x render scaling. These measure audio graph drawing, not PCM decoding or FFT analysis.",
                 Project = new { SubtitleCount = SUBTITLE_COUNT, TrackCount = TRACK_COUNT, WindowWidth = 1440, WindowHeight = 900, TimelinePixelsPerSecond = 160 },
                 NativeBackend = endingDecoder,
                 PlaybackPhases = phaseReports,
@@ -440,16 +485,23 @@ public sealed class TimelinePlaybackPerformanceTests
         return path;
     }
 
-    private static void Render(MainWindow window, SubtitleTimelineControl? timeline)
+    private static (double HeadlessMilliseconds, double TimelineMilliseconds) Render(MainWindow window, SubtitleTimelineControl? timeline)
     {
         window.UpdateLayout();
+        var headlessStarted = Stopwatch.GetTimestamp();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        var headlessMilliseconds = Stopwatch.GetElapsedTime(headlessStarted).TotalMilliseconds;
+        var timelineStarted = Stopwatch.GetTimestamp();
         if (timeline is not null)
         {
-            using var bitmap = new RenderTargetBitmap(new((int)Math.Ceiling(timeline.Bounds.Width),
-                (int)Math.Ceiling(timeline.Bounds.Height)), new(96, 96));
-            bitmap.Render(timeline);
+            var scaling = window.RenderScaling;
+            using var bitmap = new RenderTargetBitmap(new((int)Math.Ceiling(timeline.Bounds.Width * scaling),
+                (int)Math.Ceiling(timeline.Bounds.Height * scaling)));
+            using var drawing = bitmap.CreateDrawingContext();
+            using var transform = drawing.PushTransform(Matrix.CreateScale(scaling, scaling));
+            timeline.Render(drawing);
         }
+        return (headlessMilliseconds, Stopwatch.GetElapsedTime(timelineStarted).TotalMilliseconds);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout, Action pump)
