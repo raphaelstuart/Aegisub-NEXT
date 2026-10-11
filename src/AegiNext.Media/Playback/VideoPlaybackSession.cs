@@ -316,6 +316,7 @@ public sealed partial class VideoPlaybackSession : IAsyncDisposable
                 }
 
                 snapshot = snapshot with { Generation = checked(snapshot.Generation + 1) };
+                source?.SupersedeSeek();
                 ClearPresentationsUnderLock();
             }
 

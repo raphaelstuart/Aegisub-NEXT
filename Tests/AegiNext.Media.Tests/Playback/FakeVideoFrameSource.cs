@@ -12,6 +12,7 @@ internal sealed class FakeVideoFrameSource(params long[] timestamps) : IVideoFra
     private int blockNextSeek;
     private int cancelCount;
     private int disposeCount;
+    private int supersedeCount;
 
     internal ConcurrentQueue<FakeVideoFrame> IssuedFrames { get; } = new();
 
@@ -22,6 +23,8 @@ internal sealed class FakeVideoFrameSource(params long[] timestamps) : IVideoFra
     internal int CancelCount => Volatile.Read(ref cancelCount);
 
     internal int DisposeCount => Volatile.Read(ref disposeCount);
+
+    internal int SupersedeCount => Volatile.Read(ref supersedeCount);
 
     internal void BlockNextSeek()
     {
@@ -77,6 +80,11 @@ internal sealed class FakeVideoFrameSource(params long[] timestamps) : IVideoFra
             result.Dispose();
             throw;
         }
+    }
+
+    public void SupersedeSeek()
+    {
+        Interlocked.Increment(ref supersedeCount);
     }
 
     public void Cancel()

@@ -25,5 +25,6 @@ _Static_assert(sizeof(an_resolved_color) == 40, "resolved color ABI size");
 int an_decode_c_abi_test(void)
 {
     return an_decode_abi_version() == AN_DECODE_ABI_VERSION &&
-        (an_decode_features() & AN_DECODE_FEATURE_SEEK) != 0;
+        (an_decode_features() & (AN_DECODE_FEATURE_SEEK | AN_DECODE_FEATURE_SEEK_SUPERSESSION)) ==
+            (AN_DECODE_FEATURE_SEEK | AN_DECODE_FEATURE_SEEK_SUPERSESSION);
 }

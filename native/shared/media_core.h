@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 extern "C"
@@ -19,7 +20,7 @@ inline constexpr uint32_t CAP_DECODE_OPTIONS = 2;
 inline constexpr uint32_t CAP_SESSION_INFO = 4;
 inline constexpr uint32_t CAP_HARDWARE_DECODE = 8;
 inline constexpr uint32_t CAPABILITIES = 15;
-enum class ErrorCode : int32_t { InvalidArgument = 2, Unsupported = 3, Io = 4, Decode = 5, Cancelled = 6, InvalidState = 7, NativeFailure = 8, DisplayTimingUnavailable = 9 };
+enum class ErrorCode : int32_t { InvalidArgument = 2, Unsupported = 3, Io = 4, Decode = 5, Cancelled = 6, InvalidState = 7, NativeFailure = 8, DisplayTimingUnavailable = 9, SeekSuperseded = 10 };
 class CoreError final : public std::runtime_error
 {
 public:
@@ -59,6 +60,8 @@ public:
     void Open(const char *path, int32_t streamIndex);
     FramePointer ReadFrame();
     FramePointer ReadFrameForSeek(int64_t timestamp);
+    FramePointer ReadFrameForSeek(int64_t timestamp, uint64_t epoch);
+    void SetSeekEpoch(uint64_t epoch) noexcept;
     void Seek(int64_t timestamp);
     void Cancel() noexcept;
     AVRational StreamTimeBase() const;
@@ -71,18 +74,21 @@ private:
     static int Interrupt(void *opaque) noexcept;
     static AVPixelFormat SelectFormat(AVCodecContext *context, const AVPixelFormat *formats) noexcept;
     void CheckCancelled() const;
+    void CheckSeekEpoch(std::optional<uint64_t> epoch) const;
     void CheckReady() const;
     void OpenAttempt(bool hardware);
     void CloseAttempt() noexcept;
     FramePointer ReadInternal();
-    FramePointer ReadOutput(int64_t timestamp);
-    FramePointer ReadSelected(int64_t timestamp);
+    FramePointer ReadOutput(int64_t timestamp, std::optional<uint64_t> epoch = std::nullopt);
+    FramePointer ReadSelected(int64_t timestamp, std::optional<uint64_t> epoch);
     FramePointer Download(FramePointer frame);
     void Fallback(const std::string &reason);
     DecodeOptions options_;
     DecoderSessionInfo info_;
     SourceColorContext colorContext_;
     std::atomic<bool> cancelled_{false};
+    std::atomic<uint64_t> seekEpoch_{0};
+    bool requiresSeek_ = false;
     bool openAttempted_ = false, ready_ = false, failed_ = false;
     bool packetPending_ = false, demuxEof_ = false, drainSent_ = false, decoderEof_ = false;
     bool hardwareAttempt_ = false;

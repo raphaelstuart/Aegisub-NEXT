@@ -93,6 +93,7 @@ public sealed class VideoPlaybackSessionTests
         var oldSeek = session.SeekAsync(new(50, 1000));
         await source.SeekEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var latestSeek = session.SeekAsync(new(120, 1000));
+        Assert.Equal(2, source.SupersedeCount);
         source.ReleaseSeek();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => oldSeek);
@@ -118,6 +119,7 @@ public sealed class VideoPlaybackSessionTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(before, session.Snapshot);
+        Assert.Equal(0, source.SupersedeCount);
         Assert.Equal(0, source.CancelCount);
         Assert.Equal(new MediaTime(40, 1000), (await session.SeekAsync(new(50, 1000))).SelectedTime);
     }

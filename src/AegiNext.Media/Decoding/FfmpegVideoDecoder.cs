@@ -159,7 +159,19 @@ public sealed class FfmpegVideoDecoder : IVideoDecoder
         return ReadFrameCore(target, cancellationToken);
     }
 
-    private unsafe DecodedVideoFrame? ReadFrameCore(MediaTime? target, CancellationToken cancellationToken)
+    internal DecodedVideoFrame? ReadFrameForSeek(MediaTime target, ulong epoch, CancellationToken cancellationToken)
+    {
+        return ReadFrameCore(target, cancellationToken, epoch);
+    }
+
+    [SuppressMessage("ReSharper", "InconsistentlySynchronizedField", Justification = "Seek supersession bypasses the read lock; SafeHandle marshalling pins lifetime and the native method only updates an atomic epoch.")]
+    internal void SetSeekEpoch(ulong epoch)
+    {
+        ObjectDisposedException.ThrowIf(handle.IsClosed, this);
+        NativeDecodeMethods.SetSeekEpoch(handle, epoch);
+    }
+
+    private unsafe DecodedVideoFrame? ReadFrameCore(MediaTime? target, CancellationToken cancellationToken, ulong? seekEpoch = null)
     {
         lock (gate)
         {
@@ -170,9 +182,12 @@ public sealed class FfmpegVideoDecoder : IVideoDecoder
             error.Clear();
             fixed (byte* errorPointer = error)
             {
-                var code = target is { } time && (NativeDecodeMethods.Features() & NativeDecodeMethods.SEEK_SELECTION_FEATURE) != 0
+                var code = target is { } selectedTime && seekEpoch is { } epoch
+                    ? NativeDecodeMethods.ReadForSeekEpoch(handle, selectedTime.ToTimestamp(StreamTimeBase, MediaTimeRounding.FLOOR).Value,
+                        epoch, out var pointer, errorPointer, (uint)error.Length)
+                    : target is { } time && (NativeDecodeMethods.Features() & NativeDecodeMethods.SEEK_SELECTION_FEATURE) != 0
                     ? NativeDecodeMethods.ReadForSeek(handle, time.ToTimestamp(StreamTimeBase, MediaTimeRounding.FLOOR).Value,
-                        out var pointer, errorPointer, (uint)error.Length)
+                        out pointer, errorPointer, (uint)error.Length)
                     : NativeDecodeMethods.ReadNext(handle, out pointer, errorPointer, (uint)error.Length);
                 var frameHandle = new DecodedFrameHandle(pointer);
                 try
@@ -294,10 +309,11 @@ public sealed class FfmpegVideoDecoder : IVideoDecoder
     {
         try
         {
-            if ((NativeDecodeMethods.Features() & (NativeDecodeMethods.SEEK_FEATURE | NativeDecodeMethods.DISPLAY_TIMING_FEATURE)) !=
-                (NativeDecodeMethods.SEEK_FEATURE | NativeDecodeMethods.DISPLAY_TIMING_FEATURE))
+            const uint REQUIRED_FEATURES = NativeDecodeMethods.SEEK_FEATURE | NativeDecodeMethods.DISPLAY_TIMING_FEATURE |
+                NativeDecodeMethods.SEEK_SUPERSESSION_FEATURE;
+            if ((NativeDecodeMethods.Features() & REQUIRED_FEATURES) != REQUIRED_FEATURES)
             {
-                throw new NotSupportedException("原生解码库未提供定位或显示时间能力，请重新构建 Decoder。");
+                throw new NotSupportedException("原生解码库未提供定位、显示时间或可恢复定位中止能力，请重新构建 Decoder。");
             }
         }
         catch (EntryPointNotFoundException exception)

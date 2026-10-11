@@ -1,6 +1,7 @@
 #include "media_core.h"
 #include <cstdlib>
 #include <iostream>
+#include <thread>
 namespace aeginext::media
 {
 struct DecoderSessionTestAccess
@@ -23,6 +24,19 @@ struct DecoderSessionTestAccess
         if (!session.pendingFrame_) { throw std::bad_alloc(); }
         session.pendingFrame_->pts = timestamp;
         session.pendingDisplayTiming_ = {timestamp, session.timeBase_, timestamp == AV_NOPTS_VALUE ? 0u : DISPLAY_ORIGINAL_PTS};
+    }
+    static void SupersedeDuringDecoding(DecoderSession &session)
+    {
+        session.codec_->get_buffer2 = [](AVCodecContext *codec, AVFrame *frame, int flags)
+        {
+            std::thread supersede([codec] { static_cast<DecoderSession *>(codec->opaque)->SetSeekEpoch(2); });
+            supersede.join();
+            return avcodec_default_get_buffer2(codec, frame, flags);
+        };
+    }
+    static void RestoreBufferAllocation(DecoderSession &session)
+    {
+        session.codec_->get_buffer2 = avcodec_default_get_buffer2;
     }
 };
 }
@@ -166,6 +180,49 @@ void SeekSelectionPreservesTimestampContracts(const char *path)
     catch (const CoreError &error) { rejected = error.Code() == ErrorCode::InvalidArgument; }
     Require(rejected && sentinel.ReadFrame() != nullptr, "Invalid selection argument consumed or faulted the decoder.");
 }
+
+void SupersededNativePrerollRecoversWithoutReopening(const char *path)
+{
+    DecoderSession baseline({DecodeMode::Software, DecodeWorkload::Interactive});
+    baseline.Open(path, 0);
+    auto first = baseline.ReadFrame();
+    auto second = baseline.ReadFrame();
+    Require(first && second && second->pts > first->pts, "Fixture needs two increasing frames.");
+
+    DecoderSession session({DecodeMode::Software, DecodeWorkload::Interactive});
+    session.Open(path, 0);
+    const auto generation = session.Info().generation;
+    session.SetSeekEpoch(1);
+    DecoderSessionTestAccess::SupersedeDuringDecoding(session);
+    bool superseded = false;
+    try { session.ReadFrameForSeek(second->pts, 1); }
+    catch (const CoreError &error)
+    {
+        superseded = error.Code() == ErrorCode::SeekSuperseded && !error.IsHardwareFailure();
+    }
+    Require(superseded && session.Info().deliveredFrames == 0 && session.Info().downloadNanoseconds == 0,
+        "Superseded preroll delivered or downloaded a frame.");
+    Require(session.Info().generation == generation, "Supersession reopened the decoder.");
+    bool requiresSeek = false;
+    try { session.ReadFrame(); }
+    catch (const CoreError &error) { requiresSeek = error.Code() == ErrorCode::InvalidState; }
+    Require(requiresSeek, "Superseded preroll allowed an ambiguous sequential cursor.");
+
+    DecoderSessionTestAccess::RestoreBufferAllocation(session);
+    session.SetSeekEpoch(1);
+    session.Seek(first->pts);
+    auto recovered = session.ReadFrameForSeek(first->pts, 2);
+    Require(recovered && recovered->pts == first->pts && session.Info().generation == generation + 1 &&
+        session.Info().deliveredFrames == 1, "Superseded decoder did not recover by seeking or epoch moved backwards.");
+    auto next = session.ReadFrame();
+    Require(next && next->pts == second->pts, "Recovering a superseded seek lost its lookahead.");
+    session.Cancel();
+    session.SetSeekEpoch(3);
+    bool cancelled = false;
+    try { session.Seek(first->pts); }
+    catch (const CoreError &error) { cancelled = error.Code() == ErrorCode::Cancelled; }
+    Require(cancelled, "Publishing a seek epoch reset terminal cancellation.");
+}
 }
 int main()
 {
@@ -181,6 +238,7 @@ int main()
         NegotiationFailureFallsBackBeforeDelivery(path);
         HardwareRequiresFailureAndNeverSwitchesAfterDelivery(path);
         SeekSelectionPreservesTimestampContracts(path);
+        SupersededNativePrerollRecoversWithoutReopening(path);
         std::cout << "PASS controlled negotiation failure, required hardware refusal, post-delivery failure, source corruption and sticky cancellation\n";
         return 0;
     }

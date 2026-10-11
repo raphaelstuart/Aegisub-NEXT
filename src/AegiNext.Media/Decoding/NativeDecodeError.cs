@@ -24,6 +24,8 @@ internal static class NativeDecodeError
                 throw new InvalidOperationException(message);
             case NativeDecodeMethods.DISPLAY_TIMING_UNAVAILABLE:
                 throw new VideoDisplayTimingUnavailableException(message);
+            case NativeDecodeMethods.SEEK_SUPERSEDED:
+                throw new VideoSeekSupersededException(requiresSeek: true);
             default:
                 throw new InvalidDataException(message);
         }

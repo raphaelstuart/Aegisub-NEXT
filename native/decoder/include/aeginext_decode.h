@@ -31,7 +31,8 @@ enum an_decode_result
     AN_DECODE_CANCELLED = 6,
     AN_DECODE_INVALID_STATE = 7,
     AN_DECODE_NATIVE_FAILURE = 8,
-    AN_DECODE_DISPLAY_TIMING_UNAVAILABLE = 9
+    AN_DECODE_DISPLAY_TIMING_UNAVAILABLE = 9,
+    AN_DECODE_SEEK_SUPERSEDED = 10
 };
 
 enum { AN_DECODE_ABI_VERSION = 1, AN_DECODE_NAME_CAPACITY = 64 };
@@ -41,7 +42,8 @@ enum an_decode_feature_flags
     AN_DECODE_FEATURE_SEEK = 1,
     AN_DECODE_FEATURE_SDR_PREVIEW = 2,
     AN_DECODE_FEATURE_SEEK_SELECTION = 8,
-    AN_DECODE_FEATURE_DISPLAY_TIMING = 16
+    AN_DECODE_FEATURE_DISPLAY_TIMING = 16,
+    AN_DECODE_FEATURE_SEEK_SUPERSESSION = 32
 };
 
 enum an_frame_flags
@@ -235,7 +237,7 @@ AN_DECODE_API int32_t AN_DECODE_CALL an_decode_get_backend_info(an_decode_backen
 
 /* Create is nonblocking. Open is one-shot and accepts an absolute local UTF-8
  * path and an explicit video stream index. Open/read/seek/query/release are serial
- * per handle and may run off the UI thread. Only cancel may overlap open/read/seek.
+ * per handle and may run off the UI thread. Cancel and set_seek_epoch may overlap open/read/seek.
  * Cancellation is sticky and cooperative; destroy must wait for operations.
  * Errors are UTF-8 and NUL-terminated when capacity > 0. No C++ exception escapes. */
 AN_DECODE_API int32_t AN_DECODE_CALL an_decoder_create(void **decoder, char *error, uint32_t capacity);
@@ -252,6 +254,15 @@ AN_DECODE_API int32_t AN_DECODE_CALL an_decoder_read_next(void *decoder, void **
  * session is terminal. A caller may retry once with a new session from the start.
  * Decreasing timing and corrupted media remain distinct decode errors. */
 AN_DECODE_API int32_t AN_DECODE_CALL an_decoder_read_for_seek(void *decoder, int64_t timestamp, void **frame, char *error, uint32_t capacity);
+/* Optional SEEK_SUPERSESSION capability. Epochs start at zero and only increase;
+ * publishing a lower/equal epoch is a no-op and does not wait for decoding.
+ * read_for_seek_epoch checks its expected epoch at complete frame boundaries and
+ * before hardware download. A mismatch returns SEEK_SUPERSEDED without a frame;
+ * this is nonterminal, but the next read must follow a successful decoder_seek.
+ * A single demux/decode operation is not interrupted. Cancel remains terminal. */
+AN_DECODE_API void AN_DECODE_CALL an_decoder_set_seek_epoch(void *decoder, uint64_t epoch);
+AN_DECODE_API int32_t AN_DECODE_CALL an_decoder_read_for_seek_epoch(void *decoder, int64_t timestamp, uint64_t epoch,
+    void **frame, char *error, uint32_t capacity);
 /* Returns the selected stream's positive time base after a successful open.
  * This query neither reads packets nor changes the current decoder position. */
 AN_DECODE_API int32_t AN_DECODE_CALL an_decoder_get_time_base(void *decoder, an_decode_ratio *time_base, char *error, uint32_t capacity);

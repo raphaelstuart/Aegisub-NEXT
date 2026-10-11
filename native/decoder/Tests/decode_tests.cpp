@@ -448,6 +448,44 @@ void SeekFailureIsTerminal()
         "Time-base query was allowed on a failed decoder.");
 }
 
+void SeekEpochIsNonterminalAndPreservesOwnedFrames()
+{
+    const SeekFixture fixture;
+    auto decoder = OpenSeekFixture(fixture);
+    auto retained = ReadSeekFrame(decoder.get(), 0);
+    std::array<char, 512> error{};
+    an_decoder_set_seek_epoch(decoder.get(), 2);
+    void *absent = reinterpret_cast<void *>(1);
+    Require(an_decoder_read_for_seek_epoch(decoder.get(), 3, 1, &absent, error.data(), error.size()) == AN_DECODE_SEEK_SUPERSEDED && !absent,
+        "Superseded seek did not return the nonterminal status with an empty frame.");
+    Require(an_decoder_read_next(decoder.get(), &absent, error.data(), error.size()) == AN_DECODE_INVALID_STATE && !absent,
+        "Superseded seek allowed a read before resetting its cursor.");
+    an_decoder_set_seek_epoch(decoder.get(), 1);
+    Require(an_decoder_seek(decoder.get(), 2, error.data(), error.size()) == AN_DECODE_OK, error.data());
+    Require(an_decoder_read_for_seek_epoch(decoder.get(), 2, 2, &absent, error.data(), error.size()) == AN_DECODE_OK,
+        "Superseded decoder could not recover or accepted a decreasing epoch.");
+    FrameHandle selected(absent, &an_frame_destroy);
+    an_frame_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = AN_DECODE_ABI_VERSION;
+    Require(an_frame_get_info(selected.get(), &info, error.data(), error.size()) == AN_DECODE_OK && info.pts == 2,
+        "Recovered epoch selected the wrong frame.");
+    ReadSeekFrame(decoder.get(), 3);
+    Require(an_decoder_read_for_seek_epoch(decoder.get(), 3, 2, &absent, error.data(), error.size()) == AN_DECODE_EOF && !absent,
+        "Current epoch did not preserve EOF.");
+    an_decoder_set_seek_epoch(decoder.get(), 3);
+    Require(an_decoder_read_for_seek_epoch(decoder.get(), 3, 2, &absent, error.data(), error.size()) == AN_DECODE_SEEK_SUPERSEDED && !absent,
+        "EOF ignored an obsolete request epoch.");
+    an_decoder_cancel(decoder.get());
+    an_decoder_set_seek_epoch(decoder.get(), 4);
+    Require(an_decoder_seek(decoder.get(), 0, error.data(), error.size()) == AN_DECODE_CANCELLED,
+        "A new epoch reset terminal cancellation.");
+    decoder.reset();
+    std::array<uint8_t, 4> pixels{255, 255, 255, 255};
+    Require(an_frame_copy_plane(retained.get(), 0, pixels.data(), pixels.size(), error.data(), error.size()) == AN_DECODE_OK &&
+        pixels == std::array<uint8_t, 4>{0, 0, 0, 0}, "Seek supersession invalidated an owned frame.");
+}
+
 void BackendAbiAndLifecycle()
 {
     Require(an_decode_c_abi_test() == 1, "C ABI smoke test failed.");
@@ -584,6 +622,7 @@ int main()
         {"single-row zero-stride palette", CopiesSingleRowPaletteWithZeroStride},
         {"seek EOF recovery and independent ownership", SeekClearsEofAndPreservesOwnedFrames},
         {"seek failure is terminal", SeekFailureIsTerminal},
+        {"nonterminal seek epochs and owned frames", SeekEpochIsNonterminalAndPreservesOwnedFrames},
         {"backend ABI and lifecycle", BackendAbiAndLifecycle}
     };
     int failures = 0;

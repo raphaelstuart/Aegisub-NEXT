@@ -10,6 +10,53 @@ public sealed class VideoFrameNavigatorIntegrationTests
 
     [DecoderFact]
     [Trait("Category", "DecoderIntegration")]
+    public async Task NativeSupersessionReseeksWithoutReopeningAndKeepsExistingFrameLeases()
+    {
+        using var fixture = await DecoderFixture.CreateAsync(variableFrameRate: true, frameCount: 48,
+            keyFrameInterval: 48, startTimeMilliseconds: 2000);
+        var times = fixture.ExpectedFrames.EnumerateArray()
+            .Select(frame => new MediaTimestamp(frame.GetProperty("pts").GetInt64(), fixture.TimeBase).ToMediaTime()).ToArray();
+        var initialDecoders = FfmpegVideoDecoder.GetLiveDecoderCount();
+        var initialFrames = FfmpegVideoDecoder.GetLiveFrameCount();
+        var opened = 0;
+        FfmpegVideoDecoder? decoder = null;
+        using (var navigator = new VideoFrameNavigator(token =>
+        {
+            opened++;
+            return decoder = FfmpegVideoDecoder.Open(fixture.MediaPath, fixture.VideoStreamIndex,
+                new VideoDecoderOptions { Mode = VideoDecodeMode.Software }, token);
+        }))
+        {
+            using var first = Assert.IsType<PositionedVideoFrame>(navigator.ReadFrame());
+            var generation = decoder!.SessionInfo.Generation;
+            var notified = false;
+            var error = Assert.Throws<VideoSeekSupersededException>(() => navigator.SeekFrame(times[23], () =>
+            {
+                if (!notified && decoder.SessionInfo.Generation > generation)
+                {
+                    notified = true;
+                    navigator.SupersedeSeek();
+                }
+                return false;
+            }));
+            Assert.True(error.RequiresSeek);
+            Assert.Equal(1, opened);
+            using var recovered = Assert.IsType<PositionedVideoFrame>(navigator.SeekFrame(times[24]));
+            Assert.Equal(times[24], recovered.Time);
+            AssertFramePixels(fixture, recovered.Frame, 24);
+            AssertFramePixels(fixture, first.Frame, 0);
+            using var next = Assert.IsType<PositionedVideoFrame>(navigator.ReadFrame());
+            Assert.Equal(times[25], next.Time);
+            AssertFramePixels(fixture, next.Frame, 25);
+            Assert.Equal(1, opened);
+            Assert.Equal(initialDecoders + 1, FfmpegVideoDecoder.GetLiveDecoderCount());
+        }
+        Assert.Equal(initialDecoders, FfmpegVideoDecoder.GetLiveDecoderCount());
+        Assert.Equal(initialFrames, FfmpegVideoDecoder.GetLiveFrameCount());
+    }
+
+    [DecoderFact]
+    [Trait("Category", "DecoderIntegration")]
     public async Task AbandonedPrerollLeavesTheNativeDecoderUsableWithoutReopening()
     {
         using var fixture = await DecoderFixture.CreateAsync(frameCount: 48, keyFrameInterval: 12,

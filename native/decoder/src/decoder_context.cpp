@@ -18,4 +18,10 @@ std::unique_ptr<FrameOwner> DecoderContext::ReadForSeek(int64_t timestamp)
     if (!frame) { return nullptr; }
     return std::make_unique<FrameOwner>(std::move(frame), session_.StreamTimeBase(), session_.ColorContext(), session_.OutputDisplayTiming());
 }
+std::unique_ptr<FrameOwner> DecoderContext::ReadForSeek(int64_t timestamp, uint64_t epoch)
+{
+    auto frame = session_.ReadFrameForSeek(timestamp, epoch);
+    if (!frame) { return nullptr; }
+    return std::make_unique<FrameOwner>(std::move(frame), session_.StreamTimeBase(), session_.ColorContext(), session_.OutputDisplayTiming());
+}
 }

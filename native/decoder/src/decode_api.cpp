@@ -117,7 +117,7 @@ void ValidateInfo(T *info)
 }
 
 uint32_t AN_DECODE_CALL an_decode_abi_version(void) { return AN_DECODE_ABI_VERSION; }
-uint32_t AN_DECODE_CALL an_decode_features(void) { return AN_DECODE_FEATURE_SEEK | AN_DECODE_FEATURE_SDR_PREVIEW | AN_DECODE_FEATURE_MEDIA_CORE | AN_DECODE_FEATURE_SEEK_SELECTION | AN_DECODE_FEATURE_DISPLAY_TIMING; }
+uint32_t AN_DECODE_CALL an_decode_features(void) { return AN_DECODE_FEATURE_SEEK | AN_DECODE_FEATURE_SDR_PREVIEW | AN_DECODE_FEATURE_MEDIA_CORE | AN_DECODE_FEATURE_SEEK_SELECTION | AN_DECODE_FEATURE_DISPLAY_TIMING | AN_DECODE_FEATURE_SEEK_SUPERSESSION; }
 uint32_t AN_DECODE_CALL an_decode_live_decoders(void) { return decoderCount.load(); }
 uint32_t AN_DECODE_CALL an_decode_live_frames(void) { return frameCount.load(); }
 uint32_t AN_DECODE_CALL an_preview_live_converters(void) { return previewCount.load(); }
@@ -269,6 +269,36 @@ int32_t AN_DECODE_CALL an_decoder_read_for_seek(void *decoder, int64_t timestamp
         *frame = value.release();
         return AN_DECODE_OK;
     });
+}
+
+int32_t AN_DECODE_CALL an_decoder_read_for_seek_epoch(void *decoder, int64_t timestamp, uint64_t epoch,
+    void **frame, char *error, uint32_t capacity)
+{
+    if (frame) { *frame = nullptr; }
+    return Boundary(error, capacity, [&]() -> int32_t
+    {
+        if (!frame) { throw Error(AN_DECODE_INVALID_ARGUMENT, "Frame output pointer is required."); }
+        auto value = Decoder(decoder)->ReadForSeek(timestamp, epoch);
+        if (!value) { return AN_DECODE_EOF; }
+        {
+            const std::lock_guard lock(registryMutex);
+            frames.insert(value.get());
+            ++frameCount;
+        }
+        *frame = value.release();
+        return AN_DECODE_OK;
+    });
+}
+
+void AN_DECODE_CALL an_decoder_set_seek_epoch(void *handle, uint64_t epoch)
+{
+    try
+    {
+        const std::lock_guard lock(registryMutex);
+        auto *decoder = static_cast<DecoderContext *>(handle);
+        if (decoder && decoders.contains(decoder)) { decoder->SetSeekEpoch(epoch); }
+    }
+    catch (...) {}
 }
 
 int32_t AN_DECODE_CALL an_decoder_get_time_base(void *decoder, an_decode_ratio *timeBase, char *error, uint32_t capacity)

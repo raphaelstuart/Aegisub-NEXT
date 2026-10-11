@@ -14,12 +14,14 @@ internal static partial class NativeDecodeMethods
     internal const uint SEEK_FEATURE = 1;
     internal const uint SEEK_SELECTION_FEATURE = 8;
     internal const uint DISPLAY_TIMING_FEATURE = 16;
+    internal const uint SEEK_SUPERSESSION_FEATURE = 32;
     internal const int EOF = 1;
     internal const int INVALID_ARGUMENT = 2;
     internal const int UNSUPPORTED = 3;
     internal const int CANCELLED = 6;
     internal const int INVALID_STATE = 7;
     internal const int DISPLAY_TIMING_UNAVAILABLE = 9;
+    internal const int SEEK_SUPERSEDED = 10;
     internal const int ERROR_CAPACITY = 1024;
     internal const int NAME_CAPACITY = 64;
     private const string LIBRARY = "aeginext_decode";
@@ -83,6 +85,14 @@ internal static partial class NativeDecodeMethods
     [LibraryImport(LIBRARY, EntryPoint = "an_decoder_read_for_seek")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial int ReadForSeek(VideoDecoderHandle decoder, long timestamp, out nint frame, byte* error, uint capacity);
+
+    [LibraryImport(LIBRARY, EntryPoint = "an_decoder_read_for_seek_epoch")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial int ReadForSeekEpoch(VideoDecoderHandle decoder, long timestamp, ulong epoch, out nint frame, byte* error, uint capacity);
+
+    [LibraryImport(LIBRARY, EntryPoint = "an_decoder_set_seek_epoch")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void SetSeekEpoch(VideoDecoderHandle decoder, ulong epoch);
 
     [LibraryImport(LIBRARY, EntryPoint = "an_decoder_get_time_base")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

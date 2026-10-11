@@ -110,10 +110,14 @@ public sealed class VideoFrameNavigatorScrubbingTests
             Volatile.Write(ref block, 1);
             var obsolete = session.SeekAsync(new(2));
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var current = session.SeekAsync(new(80, 1000));
+            Task<VideoSeekResult>? current = null;
+            await Task.Run(() =>
+            {
+                current = session.SeekAsync(new(80, 1000));
+            }).WaitAsync(TimeSpan.FromSeconds(5));
             release.TrySetResult();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => obsolete);
-            await current.WaitAsync(TimeSpan.FromSeconds(5));
+            await current!.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.True(decoder.ReadCount <= 12, $"Superseded preroll decoded {decoder.ReadCount} frames; expected it to stop between reads.");
             Assert.Equal(1, created);
             Assert.Equal(0, decoder.CancelCount);

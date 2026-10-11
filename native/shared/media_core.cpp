@@ -96,6 +96,21 @@ void DecoderSession::CloseAttempt() noexcept
     packetPending_ = demuxEof_ = drainSent_ = decoderEof_ = false;
 }
 void DecoderSession::Cancel() noexcept { cancelled_.store(true, std::memory_order_release); }
+void DecoderSession::SetSeekEpoch(uint64_t epoch) noexcept
+{
+    auto previous = seekEpoch_.load(std::memory_order_acquire);
+    while (previous < epoch && !seekEpoch_.compare_exchange_weak(previous, epoch, std::memory_order_acq_rel, std::memory_order_acquire))
+    {
+    }
+}
+void DecoderSession::CheckSeekEpoch(std::optional<uint64_t> epoch) const
+{
+    CheckCancelled();
+    if (epoch && *epoch != seekEpoch_.load(std::memory_order_acquire))
+    {
+        throw CoreError(ErrorCode::SeekSuperseded, "Seek was superseded; seek again before reading from this session.");
+    }
+}
 int DecoderSession::Interrupt(void *opaque) noexcept
 { return static_cast<DecoderSession *>(opaque)->cancelled_.load(std::memory_order_acquire) ? 1 : 0; }
 void DecoderSession::CheckCancelled() const
@@ -328,6 +343,7 @@ void DecoderSession::Seek(int64_t timestamp)
         displayTimingTracker_.Reset(timeBase_, AV_NOPTS_VALUE, stream->avg_frame_rate, stream->r_frame_rate);
         packetPending_ = demuxEof_ = drainSent_ = decoderEof_ = false;
         seekTarget_ = timestamp;
+        requiresSeek_ = false;
         ++info_.generation;
     }
     catch (...) { failed_ = true; throw; }
@@ -342,10 +358,20 @@ FramePointer DecoderSession::ReadFrameForSeek(int64_t timestamp)
     { throw CoreError(ErrorCode::InvalidArgument, "Missing timestamp sentinel is not a seek target."); }
     return ReadOutput(timestamp);
 }
-FramePointer DecoderSession::ReadSelected(int64_t timestamp)
+FramePointer DecoderSession::ReadFrameForSeek(int64_t timestamp, uint64_t epoch)
 {
+    if (timestamp == AV_NOPTS_VALUE)
+    {
+        throw CoreError(ErrorCode::InvalidArgument, "Missing timestamp sentinel is not a seek target.");
+    }
+    return ReadOutput(timestamp, epoch);
+}
+FramePointer DecoderSession::ReadSelected(int64_t timestamp, std::optional<uint64_t> epoch)
+{
+    CheckSeekEpoch(epoch);
     const auto hadPending = pendingFrame_ != nullptr;
     auto frame = hadPending ? std::move(pendingFrame_) : ReadInternal();
+    CheckSeekEpoch(epoch);
     auto timing = hadPending ? pendingDisplayTiming_ : latestDisplayTiming_;
     pendingDisplayTiming_ = {};
     outputDisplayTiming_ = timing;
@@ -356,8 +382,9 @@ FramePointer DecoderSession::ReadSelected(int64_t timestamp)
     colorContext_.hdrEvidence |= HasHdrEvidence(frame.get());
     while (true)
     {
-        CheckCancelled();
+        CheckSeekEpoch(epoch);
         auto next = ReadInternal();
+        CheckSeekEpoch(epoch);
         if (!next) { outputDisplayTiming_ = timing; return frame; }
         const auto nextTiming = latestDisplayTiming_;
         if (nextTiming.value == AV_NOPTS_VALUE)
@@ -376,26 +403,32 @@ FramePointer DecoderSession::ReadSelected(int64_t timestamp)
         timing = nextTiming;
     }
 }
-FramePointer DecoderSession::ReadOutput(int64_t timestamp)
+FramePointer DecoderSession::ReadOutput(int64_t timestamp, std::optional<uint64_t> epoch)
 {
     CheckReady();
-    if (decoderEof_ && !pendingFrame_) { return nullptr; }
+    if (requiresSeek_)
+    {
+        throw CoreError(ErrorCode::InvalidState, "A superseded selection must be followed by a seek before reading.");
+    }
     try
     {
+        CheckSeekEpoch(epoch);
+        if (decoderEof_ && !pendingFrame_) { return nullptr; }
         FramePointer frame;
         try
         {
-            frame = ReadSelected(timestamp);
+            frame = ReadSelected(timestamp, epoch);
+            CheckSeekEpoch(epoch);
             if (frame && hardwareAttempt_) { frame = Download(std::move(frame)); }
         }
         catch (const CoreError &failure)
         {
             if (hardwareAttempt_ && options_.mode == DecodeMode::Auto && info_.deliveredFrames == 0 &&
                 failure.IsHardwareFailure())
-            { Fallback(failure.what()); frame = ReadSelected(timestamp); }
+            { Fallback(failure.what()); frame = ReadSelected(timestamp, epoch); }
             else { throw; }
         }
-        CheckCancelled();
+        CheckSeekEpoch(epoch);
         if (frame)
         {
             colorContext_.hdrEvidence |= HasHdrEvidence(frame.get());
@@ -404,6 +437,20 @@ FramePointer DecoderSession::ReadOutput(int64_t timestamp)
             { av_log(codec_, AV_LOG_INFO, "AegiNext actual decoder=%s; hardwareConfirmed=%d\n", info_.activeBackend == DecoderBackend::Software ? "software" : info_.activeBackend == DecoderBackend::VideoToolbox ? "videotoolbox" : info_.activeBackend == DecoderBackend::Vulkan ? "vulkan" : "d3d11va", info_.hardwareConfirmed); }
         }
         return frame;
+    }
+    catch (const CoreError &error)
+    {
+        if (error.Code() == ErrorCode::SeekSuperseded)
+        {
+            pendingFrame_.reset();
+            pendingDisplayTiming_ = outputDisplayTiming_ = {};
+            requiresSeek_ = true;
+        }
+        else
+        {
+            failed_ = true;
+        }
+        throw;
     }
     catch (...) { failed_ = true; throw; }
 }

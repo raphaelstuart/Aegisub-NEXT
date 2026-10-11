@@ -34,6 +34,14 @@ public interface IVideoFrameSource : IDisposable
     }
 
     /// <summary>
+    /// 通知当前定位请求已过时；必须允许与定位并发且不等待读锁，不终止会话。
+    /// 不支持原生帧间中止的实现无需处理，调用方仍检查交付代际。
+    /// </summary>
+    void SupersedeSeek()
+    {
+    }
+
+    /// <summary>
     /// 请求终端协作取消，不用于普通暂停或跳转。
     /// </summary>
     void Cancel();

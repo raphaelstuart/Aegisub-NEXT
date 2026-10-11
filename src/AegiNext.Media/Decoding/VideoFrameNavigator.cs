@@ -27,6 +27,7 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
     private bool disposed;
     private bool readingCachedSequence;
     private MediaTime? cachedNextTime;
+    private long seekEpoch;
 
     /// <summary>
     /// 使用可重建的解码器工厂打开文件起点；每次工厂调用必须返回全新的解码器。
@@ -151,6 +152,7 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
             cancellationToken.ThrowIfCancellationRequested();
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
             linked.Token.ThrowIfCancellationRequested();
+            var requestEpoch = unchecked((ulong)Volatile.Read(ref seekEpoch));
             ThrowIfSuperseded(isSuperseded);
             PositionedVideoFrame? candidate = null;
             try
@@ -214,7 +216,7 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
                     lastRawTime = null;
                     try
                     {
-                        candidate = ReadGroup(linked.Token, isSuperseded, target);
+                        candidate = ReadGroup(linked.Token, isSuperseded, target, requestEpoch);
                     }
                     catch (VideoDisplayTimingUnavailableException)
                     {
@@ -226,6 +228,7 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
                     }
                 }
 
+                ThrowIfSuperseded(isSuperseded);
                 if (candidate is null || candidate.Time > target)
                 {
                     candidate?.Dispose();
@@ -249,9 +252,14 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
                 ThrowIfSuperseded(isSuperseded);
                 return candidate;
             }
-            catch (VideoSeekSupersededException)
+            catch (VideoSeekSupersededException error)
             {
                 candidate?.Dispose();
+                if (error.RequiresSeek)
+                {
+                    ClearLookahead();
+                    lastRawTime = null;
+                }
                 throw;
             }
             catch
@@ -261,6 +269,22 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
                 ClearLookahead();
                 throw;
             }
+        }
+    }
+
+    /// <inheritdoc />
+    public void SupersedeSeek()
+    {
+        var epoch = unchecked((ulong)Interlocked.Increment(ref seekEpoch));
+        try
+        {
+            if (Volatile.Read(ref decoder) is FfmpegVideoDecoder native)
+            {
+                native.SetSeekEpoch(epoch);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 
@@ -304,7 +328,7 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
     }
 
     private PositionedVideoFrame? ReadGroup(CancellationToken cancellationToken, Func<bool>? isSuperseded = null,
-        MediaTime? seekTarget = null)
+        MediaTime? seekTarget = null, ulong? requestEpoch = null)
     {
         if (reachedEnd)
         {
@@ -317,9 +341,19 @@ public sealed class VideoFrameNavigator : IVideoFrameSource
         try
         {
             ThrowIfSuperseded(isSuperseded);
-            current ??= seekTarget is { } target && decoder is FfmpegVideoDecoder native
-                ? native.ReadFrameForSeek(target, cancellationToken)
-                : decoder!.ReadFrame(cancellationToken);
+            if (current is null)
+            {
+                if (seekTarget is { } target && requestEpoch is { } epoch && decoder is FfmpegVideoDecoder native)
+                {
+                    native.SetSeekEpoch(unchecked((ulong)Volatile.Read(ref seekEpoch)));
+                    ThrowIfSuperseded(isSuperseded);
+                    current = native.ReadFrameForSeek(target, epoch, cancellationToken);
+                }
+                else
+                {
+                    current = decoder!.ReadFrame(cancellationToken);
+                }
+            }
             if (current is null)
             {
                 reachedEnd = true;
