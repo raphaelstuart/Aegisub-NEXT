@@ -163,8 +163,8 @@
             <StackPanel Spacing="4">
               <TextBlock Text="{Loc Key=Workbench.ShadowOffset}" Classes="field" />
               <controls:VectorDraftInput Name="ShadowOffsetInput"
-                                         X="{Binding ShadowX, Mode=TwoWay}" Y="{Binding ShadowY, Mode=TwoWay}"
-                                         XText="{Binding ShadowXText, Mode=TwoWay}" YText="{Binding ShadowYText, Mode=TwoWay}"
+                                         XBinding="{Binding ShadowX, Mode=TwoWay}" YBinding="{Binding ShadowY, Mode=TwoWay}"
+                                         XTextBinding="{Binding ShadowXText, Mode=TwoWay}" YTextBinding="{Binding ShadowYText, Mode=TwoWay}"
                                          XFieldKey="ShadowXInput" YFieldKey="ShadowYInput" />
             </StackPanel>
             <StackPanel Spacing="4">

@@ -17,11 +17,11 @@
             RawText="{Binding #Row.X.RawText, Mode=TwoWay}" Value="{Binding #Row.X.Value, Mode=TwoWay}"
             Minimum="{Binding #Row.Minimum}" Maximum="{Binding #Row.Maximum}" Increment="{Binding #Row.Increment}" />
         <controls:VectorDraftInput Name="VectorInput" IsVisible="{Binding #Row.IsVector}" IsEnabled="{Binding #Row.CanEdit}"
-            XFieldKey="{Binding #Row.XFieldKey}" YFieldKey="{Binding #Row.YFieldKey}"
-            XInputName="{Binding #Row.XInputName}" YInputName="{Binding #Row.YInputName}"
-            XText="{Binding #Row.X.RawText, Mode=TwoWay}" YText="{Binding #Row.Y.RawText, Mode=TwoWay}"
-            X="{Binding #Row.X.Value, Mode=TwoWay}" Y="{Binding #Row.Y.Value, Mode=TwoWay}"
-            Minimum="{Binding #Row.Minimum}" Maximum="{Binding #Row.Maximum}" Increment="{Binding #Row.Increment}" />
+            XFieldKeyBinding="{Binding #Row.XFieldKey}" YFieldKeyBinding="{Binding #Row.YFieldKey}"
+            XInputNameBinding="{Binding #Row.XInputName}" YInputNameBinding="{Binding #Row.YInputName}"
+            XTextBinding="{Binding #Row.X.RawText, Mode=TwoWay}" YTextBinding="{Binding #Row.Y.RawText, Mode=TwoWay}"
+            XBinding="{Binding #Row.X.Value, Mode=TwoWay}" YBinding="{Binding #Row.Y.Value, Mode=TwoWay}"
+            MinimumBinding="{Binding #Row.Minimum}" MaximumBinding="{Binding #Row.Maximum}" IncrementBinding="{Binding #Row.Increment}" />
         <controls:ColorDraftInput Name="ColorInput" CommitOnLostFocus="False" IsVisible="{Binding #Row.IsColor}" IsEnabled="{Binding #Row.CanEdit}" Draft="{Binding #Row.Color}" />
       </StackPanel>
       <StackPanel Name="RowActions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" IsVisible="{Binding #Row.ShowAnimationActions}">

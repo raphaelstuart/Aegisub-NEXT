@@ -43,14 +43,14 @@
         <StackPanel>
           <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto"><TextBlock Name="LayerStartLabel" Text="{Loc Key=Workbench.Start}" /><TextBox Grid.Column="1" Grid.ColumnSpan="2" Name="LayerStartInput" Text="{Binding LayerStart, Mode=TwoWay}" /></Grid>
           <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto"><TextBlock Name="LayerEndLabel" Text="{Loc Key=Workbench.End}" /><TextBox Grid.Column="1" Grid.ColumnSpan="2" Name="LayerEndInput" Text="{Binding LayerEnd, Mode=TwoWay}" /></Grid>
-          <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto" IsVisible="{Binding CanResizeLayer}"><TextBlock Text="{Loc Key=Workbench.Size}" /><controls:VectorDraftInput Grid.Column="1" Grid.ColumnSpan="2" Name="LayerSizeInput" XFieldKey="LayerWidthInput" YFieldKey="LayerHeightInput" XText="{Binding LayerWidthText, Mode=TwoWay}" YText="{Binding LayerHeightText, Mode=TwoWay}" X="{Binding LayerWidth, Mode=TwoWay}" Y="{Binding LayerHeight, Mode=TwoWay}" Minimum="1" Maximum="200000" /></Grid>
+          <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto" IsVisible="{Binding CanResizeLayer}"><TextBlock Text="{Loc Key=Workbench.Size}" /><controls:VectorDraftInput Grid.Column="1" Grid.ColumnSpan="2" Name="LayerSizeInput" XFieldKey="LayerWidthInput" YFieldKey="LayerHeightInput" XTextBinding="{Binding LayerWidthText, Mode=TwoWay}" YTextBinding="{Binding LayerHeightText, Mode=TwoWay}" XBinding="{Binding LayerWidth, Mode=TwoWay}" YBinding="{Binding LayerHeight, Mode=TwoWay}" Minimum="1" Maximum="200000" /></Grid>
         </StackPanel>
       </controlsCommon:PropertySection>
       <controlsCommon:PropertySection Name="TransformCategory" Classes="effect-category" Header="{Loc Key=Workbench.EffectCategoryTransform}" IsExpanded="{Binding TransformExpanded, Mode=TwoWay}" IsEnabled="{Binding CanEditTargetTransform}">
         <StackPanel>
           <Grid Name="PositionRow" Classes="effect-row" ColumnDefinitions="108,*,Auto" IsVisible="{Binding CanEditTargetTransform}" ToolTip.Tip="{Binding PositionEditingHint}">
             <TextBlock Name="PositionLabel" Text="{Binding PositionLabel}" />
-            <controls:VectorDraftInput Grid.Column="1" Name="PositionInput" XFieldKey="PositionXInput" YFieldKey="PositionYInput" XText="{Binding PositionXText, Mode=TwoWay}" YText="{Binding PositionYText, Mode=TwoWay}" X="{Binding PositionX, Mode=TwoWay}" Y="{Binding PositionY, Mode=TwoWay}" Minimum="-2000032768" Maximum="2000032768" IsEnabled="{Binding CanEditPosition}" />
+            <controls:VectorDraftInput Grid.Column="1" Name="PositionInput" XFieldKey="PositionXInput" YFieldKey="PositionYInput" XTextBinding="{Binding PositionXText, Mode=TwoWay}" YTextBinding="{Binding PositionYText, Mode=TwoWay}" XBinding="{Binding PositionX, Mode=TwoWay}" YBinding="{Binding PositionY, Mode=TwoWay}" Minimum="-2000032768" Maximum="2000032768" IsEnabled="{Binding CanEditPosition}" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
               <ToggleButton Name="PositionAnimationToggle" Classes="animation-property-action" IsChecked="{Binding IsPositionAnimated, Mode=OneWay}" Command="{Binding TogglePropertyAnimationCommand}" CommandParameter="{x:Static core:AnimationProperty.POSITION}" ToolTip.Tip="{Loc Key=Workbench.TogglePropertyAnimation}" ><controlsCommon:IconText IconKey="Clock" /></ToggleButton>
               <Button Name="PositionKeyframeButton" Classes="animation-property-action" Command="{Binding AddPropertyKeyframeCommand}" CommandParameter="{x:Static core:AnimationProperty.POSITION}" ToolTip.Tip="{Loc Key=Workbench.Keyframe}" ><controlsCommon:IconText IconKey="Keyframe" /></Button>
@@ -59,7 +59,7 @@
           </Grid>
           <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto" ToolTip.Tip="{Binding ScaleEditingHint}">
             <TextBlock Text="{Loc Key=Workbench.ScaleVector}" />
-            <controls:VectorDraftInput Grid.Column="1" Name="ScaleInput" Increment="0.01" XFieldKey="ScaleXInput" YFieldKey="ScaleYInput" XText="{Binding ScaleXText, Mode=TwoWay}" YText="{Binding ScaleYText, Mode=TwoWay}" X="{Binding ScaleX, Mode=TwoWay}" Y="{Binding ScaleY, Mode=TwoWay}" Minimum="{x:Static vm:EffectsPanelViewModel.ScaleMinimum}" Maximum="{x:Static vm:EffectsPanelViewModel.ScaleMaximum}" IsEnabled="{Binding CanEditScale}" />
+            <controls:VectorDraftInput Grid.Column="1" Name="ScaleInput" Increment="0.01" XFieldKey="ScaleXInput" YFieldKey="ScaleYInput" XTextBinding="{Binding ScaleXText, Mode=TwoWay}" YTextBinding="{Binding ScaleYText, Mode=TwoWay}" XBinding="{Binding ScaleX, Mode=TwoWay}" YBinding="{Binding ScaleY, Mode=TwoWay}" Minimum="{x:Static vm:EffectsPanelViewModel.ScaleMinimum}" Maximum="{x:Static vm:EffectsPanelViewModel.ScaleMaximum}" IsEnabled="{Binding CanEditScale}" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
               <ToggleButton Classes="animation-property-action" IsChecked="{Binding IsScaleAnimated, Mode=OneWay}" Command="{Binding TogglePropertyAnimationCommand}" CommandParameter="{x:Static core:AnimationProperty.SCALE}" ToolTip.Tip="{Loc Key=Workbench.TogglePropertyAnimation}" ><controlsCommon:IconText IconKey="Clock" /></ToggleButton>
               <Button Classes="animation-property-action" Command="{Binding AddPropertyKeyframeCommand}" CommandParameter="{x:Static core:AnimationProperty.SCALE}" ToolTip.Tip="{Loc Key=Workbench.Keyframe}" ><controlsCommon:IconText IconKey="Keyframe" /></Button>
@@ -183,8 +183,8 @@
           </StackPanel>
         </Grid>
         <controls:VectorDraftInput Name="OperationVectorInput" IsVisible="{Binding IsVectorProperty}" XFieldKey="OperationValueXInput" YFieldKey="OperationValueYInput"
-            XText="{Binding OperationValueX.RawText, Mode=TwoWay}" YText="{Binding OperationValueY.RawText, Mode=TwoWay}"
-            X="{Binding OperationValueX.Value, Mode=TwoWay}" Y="{Binding OperationValueY.Value, Mode=TwoWay}" Minimum="{Binding KeyframeMinimum}" Maximum="{Binding KeyframeMaximum}" />
+            XTextBinding="{Binding OperationValueX.RawText, Mode=TwoWay}" YTextBinding="{Binding OperationValueY.RawText, Mode=TwoWay}"
+            XBinding="{Binding OperationValueX.Value, Mode=TwoWay}" YBinding="{Binding OperationValueY.Value, Mode=TwoWay}" MinimumBinding="{Binding KeyframeMinimum}" MaximumBinding="{Binding KeyframeMaximum}" />
         <controls:NumericDragLabel Text="{Loc Key=Workbench.Value}" Input="{Binding #OperationValueInput}" IsVisible="{Binding IsScalarProperty}" />
         <controls:NumericDraftInput Name="OperationValueInput" IsVisible="{Binding IsScalarProperty}" RawText="{Binding OperationValueX.RawText, Mode=TwoWay}"
             Value="{Binding OperationValueX.Value, Mode=TwoWay}" Minimum="{Binding KeyframeMinimum}" Maximum="{Binding KeyframeMaximum}" />
@@ -208,10 +208,10 @@
       </StackPanel>
       <controls:VectorDraftInput Name="KeyframeVectorInput" IsEnabled="{Binding CanEditKeyframes}" IsVisible="{Binding IsVectorProperty}"
                                  XFieldKey="KeyframeValueXInput" YFieldKey="KeyframeValueYInput"
-                                 XText="{Binding KeyframeValueText, Mode=TwoWay}"
-                                 YText="{Binding KeyframeValueYText, Mode=TwoWay}"
-                                 X="{Binding KeyframeValue, Mode=TwoWay}" Y="{Binding KeyframeValueY, Mode=TwoWay}"
-                                 Minimum="{Binding KeyframeMinimum}" Maximum="{Binding KeyframeMaximum}" />
+                                 XTextBinding="{Binding KeyframeValueText, Mode=TwoWay}"
+                                 YTextBinding="{Binding KeyframeValueYText, Mode=TwoWay}"
+                                 XBinding="{Binding KeyframeValue, Mode=TwoWay}" YBinding="{Binding KeyframeValueY, Mode=TwoWay}"
+                                 MinimumBinding="{Binding KeyframeMinimum}" MaximumBinding="{Binding KeyframeMaximum}" />
       <Grid Classes="effect-row" ColumnDefinitions="108,*,Auto" IsVisible="{Binding IsColorProperty}">
         <TextBlock Text="{Loc Key=Workbench.ColorInterpolationSpace}" />
         <ComboBox Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding ColorSpaces}" SelectedIndex="{Binding ColorSpace, Mode=TwoWay}" HorizontalAlignment="Stretch" />

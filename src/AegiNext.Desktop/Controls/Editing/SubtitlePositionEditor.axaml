@@ -39,22 +39,22 @@
       <StackPanel Spacing="4">
         <TextBlock Classes="field" Text="{Loc Key=Workbench.Anchor}" />
         <controls:VectorDraftInput Name="AnchorInput" XFieldKey="AnchorXInput" YFieldKey="AnchorYInput"
-                                  XText="{Binding AnchorX.RawText, Mode=TwoWay}" YText="{Binding AnchorY.RawText, Mode=TwoWay}"
-                                  X="{Binding AnchorX.Value, Mode=OneWay}" Y="{Binding AnchorY.Value, Mode=OneWay}"
+                                  XTextBinding="{Binding AnchorX.RawText, Mode=TwoWay}" YTextBinding="{Binding AnchorY.RawText, Mode=TwoWay}"
+                                  XBinding="{Binding AnchorX.Value, Mode=OneWay}" YBinding="{Binding AnchorY.Value, Mode=OneWay}"
                                   Minimum="0" Maximum="1" Increment="0.01" />
       </StackPanel>
       <StackPanel Spacing="4">
         <TextBlock Classes="field" Text="{Loc Key=Workbench.Pivot}" />
         <controls:VectorDraftInput Name="PivotInput" XFieldKey="PivotXInput" YFieldKey="PivotYInput"
-                                  XText="{Binding PivotX.RawText, Mode=TwoWay}" YText="{Binding PivotY.RawText, Mode=TwoWay}"
-                                  X="{Binding PivotX.Value, Mode=OneWay}" Y="{Binding PivotY.Value, Mode=OneWay}"
+                                  XTextBinding="{Binding PivotX.RawText, Mode=TwoWay}" YTextBinding="{Binding PivotY.RawText, Mode=TwoWay}"
+                                  XBinding="{Binding PivotX.Value, Mode=OneWay}" YBinding="{Binding PivotY.Value, Mode=OneWay}"
                                   Minimum="0" Maximum="1" Increment="0.01" />
       </StackPanel>
       <StackPanel Spacing="4">
         <TextBlock Classes="field" Text="{Loc Key=Workbench.Offset}" />
         <controls:VectorDraftInput Name="OffsetInput" XFieldKey="OffsetXInput" YFieldKey="OffsetYInput"
-                                  XText="{Binding OffsetX.RawText, Mode=TwoWay}" YText="{Binding OffsetY.RawText, Mode=TwoWay}"
-                                  X="{Binding OffsetX.Value, Mode=OneWay}" Y="{Binding OffsetY.Value, Mode=OneWay}" />
+                                  XTextBinding="{Binding OffsetX.RawText, Mode=TwoWay}" YTextBinding="{Binding OffsetY.RawText, Mode=TwoWay}"
+                                  XBinding="{Binding OffsetX.Value, Mode=OneWay}" YBinding="{Binding OffsetY.Value, Mode=OneWay}" />
       </StackPanel>
     </StackPanel>
   </StackPanel>
