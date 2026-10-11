@@ -50,7 +50,8 @@ public sealed class AssRotationOriginImportTests
         Assert.DoesNotContain(parsed.Diagnostics, item => item.Code is "Ass.RotationOrigin" or "Ass.UnsupportedTag");
         foreach (var milliseconds in new[] { 0, 500, 723, 1000, 1500, 1999 })
         {
-            var fraction = Math.Clamp((milliseconds - start) / (double)(end - start), 0, 1);
+            var fraction = start <= 0 && end <= 0 ? milliseconds / 2000d :
+                Math.Clamp((milliseconds - start) / (double)(end - start), 0, 1);
             var effective = SceneEvaluator.EvaluateLayer(layer, document.Subtitles[0],
                 layer.AnimationOffset + new MediaTime(milliseconds, 1000)).Transform;
             var expected = Add(new(200, 140), Rotate(new(-80 + 140 * fraction + 1.5 * 25,

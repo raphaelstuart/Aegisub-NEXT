@@ -117,6 +117,9 @@ public sealed class AssTransformImportTests
     [Theory]
     [InlineData("\\move(10,20,110,220)")]
     [InlineData("\\move(10,20,110,220,0,0)")]
+    [InlineData("\\move(10,20,110,220,-3000,-1000)")]
+    [InlineData("\\move(10,20,110,220,-1000,0)")]
+    [InlineData("\\move(10,20,110,220,-0.9,0.9)")]
     public void ImplicitMoveTimesUseTheWholeDialogue(string tag)
     {
         var track = Assert.Single(Parse("{" + tag + "}a").PlacementTracks);
@@ -153,7 +156,7 @@ public sealed class AssTransformImportTests
 
     [Theory]
     [InlineData(-1000, 3000, 25, 50, 75, false)]
-    [InlineData(-3000, -1000, 100, 100, 100, false)]
+    [InlineData(-3000, -1000, 0, 50, 100, false)]
     [InlineData(3000, 5000, 0, 0, 0, false)]
     [InlineData(-1000, 1000, 50, 100, 100, false)]
     [InlineData(1000, 3000, 0, 0, 50, false)]

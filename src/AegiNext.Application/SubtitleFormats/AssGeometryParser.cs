@@ -153,8 +153,13 @@ internal sealed class AssGeometryParser
                     Report("Ass.MoveTiming", "ASS 移动时间超出可保存的范围，已跳过该移动。", sourceStart, sourceLength);
                     return false;
                 }
-                start = new((long)first, 1000);
-                end = new((long)last, 1000);
+                var firstMilliseconds = (long)first;
+                var lastMilliseconds = (long)last;
+                if (firstMilliseconds > 0 || lastMilliseconds > 0)
+                {
+                    start = new(firstMilliseconds, 1000);
+                    end = new(lastMilliseconds, 1000);
+                }
                 if (!first.Equals((long)first) || !last.Equals((long)last))
                 {
                     Report("Ass.MoveTiming", "ASS 移动时间已按整数毫秒解析，小数毫秒被舍弃。", sourceStart, sourceLength);
