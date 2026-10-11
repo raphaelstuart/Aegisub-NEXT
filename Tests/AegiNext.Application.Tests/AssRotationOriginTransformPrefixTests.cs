@@ -67,7 +67,7 @@ public sealed class AssRotationOriginTransformPrefixTests
         AssertNoOriginLoss(parsed);
     }
 
-    /// <summary>嵌套标签还含其他动画时保留现有不支持诊断与外层轨道，不验证完整渲染语义。</summary>
+    /// <summary>嵌套几何被舍弃时保留外层轨道，原点转换报告损失而不推断完整源几何。</summary>
     [Fact]
     public void MixedNestedTransformKeepsItsUnsupportedDiagnosticAndTheOuterAnimation()
     {
@@ -75,10 +75,10 @@ public sealed class AssRotationOriginTransformPrefixTests
         var clip = Assert.Single(parsed.Clips);
         var rotation = Assert.Single(clip.Tracks.Where(track => track.Property == AnimationProperty.ROTATION));
 
-        Assert.Equal(new ScenePoint(80, 60), clip.Transform.Pivot);
+        Assert.Equal(default, clip.Transform.Pivot);
         Assert.Equal(-35, SceneEvaluator.EvaluateTrack(rotation, new(1, 2)).Scalar);
         Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "Ass.UnsupportedTag");
-        Assert.DoesNotContain(parsed.Diagnostics, diagnostic => diagnostic.Code == "Ass.RotationOrigin");
+        Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "Ass.RotationOrigin");
     }
 
     /// <summary>前导文本的处理不会扩大既有严格数字规则，非法原点仍局部诊断。</summary>

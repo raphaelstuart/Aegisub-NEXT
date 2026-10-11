@@ -37,7 +37,7 @@ internal sealed class AssTextAnimationImport
 
     internal bool HasShadowAnimation => !channels["shadow"].Snapshot(0).Operations.IsEmpty;
 
-    internal AssRotationOriginGeometry RotationOriginGeometry() => AssRotationOriginGeometry.FromRuns(runs);
+    internal AssRotationOriginGeometry RotationOriginGeometry() => AssRotationOriginGeometry.FromRuns(runs, original.End - original.Start);
 
     internal void Observe(int offset, int length, bool karaoke, int excludedCandidate)
     {

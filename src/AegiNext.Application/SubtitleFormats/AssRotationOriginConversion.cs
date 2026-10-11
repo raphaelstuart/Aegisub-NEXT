@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using AegiNext.Core.Projects;
+using AegiNext.Core.Timing;
 
 namespace AegiNext.Application.SubtitleFormats;
 
@@ -8,10 +9,13 @@ internal static class AssRotationOriginConversion
     internal static bool TryImport(ScenePoint origin, ScenePoint? basePosition, SubtitleLine line,
         LayerTransform transform, ImmutableArray<AnimationTrack> placementTracks, ImmutableArray<AnimationTrack> numericTracks,
         AssRotationOriginGeometry sourceGeometry, double canvasScaleX, double canvasScaleY,
-        out LayerTransform convertedTransform, out ImmutableArray<AnimationTrack> convertedPlacementTracks, out string reason)
+        MediaTime contentOffset, MediaTime duration, out LayerTransform convertedTransform,
+        out ImmutableArray<AnimationTrack> convertedPlacementTracks, out ImmutableArray<AnimationTrack> convertedNumericTracks,
+        out string reason)
     {
         convertedTransform = transform;
         convertedPlacementTracks = placementTracks;
+        convertedNumericTracks = numericTracks;
         reason = string.Empty;
         if (!ValidPoint(origin))
         {
@@ -28,6 +32,11 @@ internal static class AssRotationOriginConversion
             reason = "源文字缩放或旋转超出可转换的原生范围";
             return false;
         }
+        if (!sourceGeometry.IsComplete)
+        {
+            reason = "部分源几何变换未保留，不能精确补偿旋转原点";
+            return false;
+        }
         if (!sourceGeometry.HasCommonScale || !sourceGeometry.HasCommonRotation || HasRangeGeometry(line, numericTracks))
         {
             reason = "文字范围的位移、缩放或旋转不能共用此整行原点补偿";
@@ -35,16 +44,21 @@ internal static class AssRotationOriginConversion
         }
         var scale = transform.Scale;
         var rotation = transform.Rotation;
-        var animatedRotation = sourceGeometry.HasRotationAnimation;
-        foreach (var track in numericTracks.Where(track => track.Target.TextRangeId is null &&
-            track.Property is AnimationProperty.SCALE or AnimationProperty.ROTATION))
+        var animatedRotation = false;
+        var normalizedTracks = numericTracks.ToBuilder();
+        for (var index = 0; index < numericTracks.Length; index++)
         {
+            var track = numericTracks[index];
+            if (track.Target.TextRangeId is not null || track.Property is not (AnimationProperty.SCALE or AnimationProperty.ROTATION))
+            {
+                continue;
+            }
             if (track.Target.State != SubtitleAnimationState.NORMAL)
             {
                 reason = "独立文字状态的几何不能共用此整行原点补偿";
                 return false;
             }
-            var constant = TryConstant(track, out var value);
+            var constant = AssGeometryAnimationWindow.TryConstant(track, contentOffset, contentOffset + duration, out var value);
             if (track.Property == AnimationProperty.SCALE)
             {
                 if (!constant)
@@ -62,15 +76,26 @@ internal static class AssRotationOriginConversion
             {
                 animatedRotation = true;
             }
+            if (constant && track.IsOrdered)
+            {
+                normalizedTracks[index] = track with
+                {
+                    Keyframes = [new(contentOffset, value)], InitialValue = null, Transforms = []
+                };
+            }
         }
         if (sourceGeometry.HasScaleAnimation)
         {
             reason = "动态缩放需要旋转原点与位置联动，当前转换不支持该组合";
             return false;
         }
-        if (sourceGeometry.HasRotationAnimation && !numericTracks.Any(track => track.Target.TextRangeId is null &&
-            track.Target.State == SubtitleAnimationState.NORMAL && track.Property == AnimationProperty.ROTATION &&
-            !TryConstant(track, out _)))
+        if (sourceGeometry.ConstantScale != scale || sourceGeometry.ConstantRotation is { } expectedRotation &&
+            (animatedRotation || expectedRotation != rotation))
+        {
+            reason = "源可见窗口内的固定几何与导入结果不一致，不能精确补偿旋转原点";
+            return false;
+        }
+        if (sourceGeometry.HasRotationAnimation && !animatedRotation)
         {
             reason = "源旋转动画未完整保留，不能精确补偿旋转原点";
             return false;
@@ -122,6 +147,7 @@ internal static class AssRotationOriginConversion
         }
         convertedTransform = transform with { Position = delta, Pivot = pivot };
         convertedPlacementTracks = converted.MoveToImmutable();
+        convertedNumericTracks = normalizedTracks.ToImmutable();
         return true;
     }
 

@@ -1,50 +1,64 @@
 using AegiNext.Core.Projects;
+using AegiNext.Core.Timing;
 
 namespace AegiNext.Application.SubtitleFormats;
 
 internal sealed record AssRotationOriginGeometry(bool HasContent, bool HasCommonScale, bool HasCommonRotation,
-    bool HasScaleAnimation, bool HasRotationAnimation, bool IsValid)
+    ScenePoint? ConstantScale, double? ConstantRotation, bool IsValid)
 {
-    internal static AssRotationOriginGeometry FromRuns(IReadOnlyList<AssTextAnimationRun> runs)
+    internal bool IsComplete { get; init; } = true;
+
+    internal bool HasScaleAnimation => ConstantScale is null;
+
+    internal bool HasRotationAnimation => ConstantRotation is null;
+
+    internal static AssRotationOriginGeometry FromRuns(IReadOnlyList<AssTextAnimationRun> runs, MediaTime duration)
     {
         if (runs.Count == 0)
         {
-            return new(false, true, true, false, false, true);
+            return new(false, true, true, null, null, true);
         }
         var scales = runs.Select(run => run.Channels["scale"]).ToArray();
         var rotations = runs.Select(run => run.Channels["frz"]).ToArray();
-        var scaleAnimation = scales.Any(Changes);
-        var rotationAnimation = rotations.Any(Changes);
+        var constantScale = CommonConstant(scales, duration, out var scale);
+        var constantRotation = CommonConstant(rotations, duration, out var rotation);
         return new(true,
-            scales.All(snapshot => snapshot.Initial == scales[0].Initial && (!scaleAnimation || snapshot.Equivalent(scales[0]))),
-            rotations.All(snapshot => snapshot.Initial == rotations[0].Initial && (!rotationAnimation || snapshot.Equivalent(rotations[0]))),
-            scaleAnimation, rotationAnimation,
+            constantScale || scales.All(snapshot => snapshot.Equivalent(scales[0])),
+            constantRotation || rotations.All(snapshot => snapshot.Equivalent(rotations[0])),
+            constantScale ? scale.Vector : null, constantRotation ? rotation.Scalar : null,
             scales.All(snapshot => Valid(snapshot, true)) && rotations.All(snapshot => Valid(snapshot, false)));
     }
 
-    private static bool Changes(AssTextAnimationSnapshot snapshot)
+    internal static bool ContainsGeometry(IEnumerable<AssOverrideTag> tags)
     {
-        foreach (var operation in snapshot.Operations)
+        var pending = new Stack<AssOverrideTag>(tags);
+        while (pending.TryPop(out var tag))
         {
-            for (var component = 0; component < snapshot.Initial.ComponentCount; component++)
+            if (tag.Name is "fsc" or "fscx" or "fscy" or "fr" or "frz")
             {
-                if (operation.ComponentMask != 0 && (operation.ComponentMask & (1 << component)) == 0)
+                return true;
+            }
+            if (tag.Name == "t")
+            {
+                foreach (var child in AssOverrideTags.Parse(AssOverrideTags.Arguments(tag.Value)[^1]))
                 {
-                    continue;
-                }
-                var initial = snapshot.Initial.GetComponent(component);
-                var target = operation.Value.GetComponent(component);
-                if (operation.ClampNonNegative)
-                {
-                    target = Math.Max(target, 0);
-                }
-                if (operation.Mode == AnimationTransformMode.MULTIPLY_BY ? initial != 0 && !target.Equals(1d) : !target.Equals(initial))
-                {
-                    return true;
+                    pending.Push(child);
                 }
             }
         }
         return false;
+    }
+
+    private static bool CommonConstant(AssTextAnimationSnapshot[] snapshots, MediaTime duration,
+        out AnimationValue value)
+    {
+        if (!AssGeometryAnimationWindow.TryConstant(snapshots[0], duration, out value))
+        {
+            return false;
+        }
+        var expected = value;
+        return snapshots.Skip(1).All(snapshot =>
+            AssGeometryAnimationWindow.TryConstant(snapshot, duration, out var actual) && actual == expected);
     }
 
     private static bool Valid(AssTextAnimationSnapshot snapshot, bool scale)

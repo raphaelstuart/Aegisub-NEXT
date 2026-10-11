@@ -64,6 +64,7 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
     private int segmentSourceLength;
     private bool drawing;
     private bool explicitAlignment;
+    private bool incompleteGeometry;
     private static readonly string[] knownTags = AssOverrideTags.KnownNames;
 
     internal AssTextEditResult Parse(string source)
@@ -189,7 +190,8 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
         ImmutableArray<AnimationTrack> numericTracks = [];
         if (!projectSource)
         {
-            var sourceGeometry = rotationOriginParser.Origin.HasValue ? textAnimation.RotationOriginGeometry() : null;
+            var sourceGeometry = rotationOriginParser.Origin.HasValue
+                ? textAnimation.RotationOriginGeometry() with { IsComplete = !incompleteGeometry } : null;
             transform = textAnimation.NormalizeTransform(geometryParser.Transform());
             var appearance = new AssTransformAppearance(transform, original.Id);
             line = appearance.Import(line);
@@ -200,11 +202,12 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
             if (rotationOriginParser.Origin is { } origin && sourceGeometry is not null)
             {
                 if (AssRotationOriginConversion.TryImport(origin, geometryParser.Placement, line, transform, placementTracks,
-                    numericTracks, sourceGeometry, scaleX, scaleY, out var convertedTransform, out var convertedPlacementTracks,
-                    out var reason))
+                    numericTracks, sourceGeometry, scaleX, scaleY, contentOffset, original.End - original.Start,
+                    out var convertedTransform, out var convertedPlacementTracks, out var convertedNumericTracks, out var reason))
                 {
                     transform = convertedTransform;
                     placementTracks = convertedPlacementTracks;
+                    numericTracks = convertedNumericTracks;
                 }
                 else
                 {
@@ -668,11 +671,13 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
         }
         catch (InvalidDataException)
         {
+            incompleteGeometry |= !projectSource && AssRotationOriginGeometry.ContainsGeometry(tags);
             Report("Ass.TransformTiming", "ASS 数值变换的时间或参数无效，已舍弃该变换并保留其他内容。", sourceStart, sourceLength);
             return;
         }
         if (timing.End < timing.Start || !double.IsFinite(timing.Acceleration) || timing.Acceleration < 0)
         {
+            incompleteGeometry |= !projectSource && AssRotationOriginGeometry.ContainsGeometry(tags);
             Report("Ass.TransformTiming", "ASS 逆序时间或负加速度不能准确转换为有限原生动画，已舍弃该变换。", sourceStart, sourceLength);
             return;
         }
@@ -718,6 +723,7 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
             }
             if (tag.Name is not ("fsp" or "bord" or "blur" or "fscx" or "fscy" or "frz" or "fr"))
             {
+                incompleteGeometry |= !projectSource && AssRotationOriginGeometry.ContainsGeometry([tag]);
                 if (candidate == 0 || !visualTags.Contains(tag))
                 {
                     Report("Ass.UnsupportedTag", $"ASS 变换中的 {tag.Name} 尚不能转换为原生动画，已保留可转换的其他属性。", sourceStart, sourceLength);
