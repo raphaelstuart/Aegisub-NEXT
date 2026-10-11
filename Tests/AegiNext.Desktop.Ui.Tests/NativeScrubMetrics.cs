@@ -29,6 +29,8 @@ internal sealed class NativeScrubMetrics
     private int round;
     private int sequence;
     private int discardedSamples;
+    internal double TimelineStartSeconds { get; set; }
+    internal double TimelineDurationSeconds { get; set; }
 
     internal int PresentationCount
     {
@@ -206,6 +208,7 @@ internal sealed class NativeScrubMetrics
                 Runtime = RuntimeInformation.RuntimeIdentifier, OS = RuntimeInformation.OSDescription,
                 RecordedAtUtc = DateTimeOffset.UtcNow, Fixture = fixture, MediaPath = mediaPath,
                 RequestedMode = mode.ToString(), AnimatedSubtitles = animated, Repetitions = repetitions,
+                TimelineStartSeconds, TimelineDurationSeconds,
                 RequestedPointerRateHz = 120, RequestedRenderBarrierRateHz = 60,
                 ActualDecoder = decoder, Cache = cacheProperty?.GetValue(converter),
                 Measurement = "Real MainWindow/WorkbenchSession pointer dispatch, native navigator and production project converter. " +

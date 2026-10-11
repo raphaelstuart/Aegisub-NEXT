@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using AegiNext.Core.Projects;
 using AegiNext.Core.Timing;
 using AegiNext.Desktop.Controls;
@@ -54,23 +55,30 @@ public sealed class NativeTimelineScrubBenchmarks(ITestOutputHelper output)
             Assert.Null(context.Controller.Snapshot.Error);
             var duration = context.Controller.Snapshot.Duration;
             Assert.True(duration is { } length && length >= new MediaTime(4), "Scrub fixture must contain at least four seconds of video.");
+            var configuredStart = Environment.GetEnvironmentVariable("AEGINEXT_SCRUB_START_SECONDS");
+            var start = configuredStart is null ? 0 : double.Parse(configuredStart, CultureInfo.InvariantCulture);
+            var available = (double)duration!.Value.Numerator / duration.Value.Denominator;
+            Assert.True(double.IsFinite(start) && start >= 0 && available - start >= 4,
+                "Scrub window must start inside the media and contain at least four seconds.");
+            var seconds = Math.Min(10, available - start);
+            metrics.TimelineStartSeconds = start;
+            metrics.TimelineDurationSeconds = seconds;
             if (animated)
             {
-                InstallAnimation(context);
+                InstallAnimation(context, start, seconds);
                 await context.Controller.RefreshPausedPreviewAsync();
             }
             var timeline = UiTestActions.Find<SubtitleTimelineControl>(context.Window, "Timeline");
-            var seconds = Math.Min(10, (double)duration!.Value.Numerator / duration.Value.Denominator);
             context.Window.Session.ViewModel.Timeline.Viewport = timeline.Viewport with
             {
-                StartSeconds = 0, PixelsPerSecond = timeline.Viewport.Width / seconds
+                StartSeconds = start, PixelsPerSecond = timeline.Viewport.Width / seconds
             };
             context.Window.Session.ViewModel.Timeline.SuspendPlaybackFollow();
             context.Window.UpdateLayout();
-            await RunRoundAsync(context, metrics, timeline, seconds, 0);
+            await RunRoundAsync(context, metrics, timeline, start, seconds, 0);
             for (var round = 1; round <= repetitions; round++)
             {
-                await RunRoundAsync(context, metrics, timeline, seconds, round);
+                await RunRoundAsync(context, metrics, timeline, start, seconds, round);
             }
             Assert.Null(context.RenderingError);
             Assert.Null(context.Controller.Snapshot.Error);
@@ -93,14 +101,14 @@ public sealed class NativeTimelineScrubBenchmarks(ITestOutputHelper output)
     }
 
     private static async Task RunRoundAsync(NativeScrubWindowContext context, NativeScrubMetrics metrics,
-        SubtitleTimelineControl timeline, double seconds, int round)
+        SubtitleTimelineControl timeline, double start, double seconds, int round)
     {
         metrics.BeginRound(round);
         var window = context.Window;
         var canvas = UiTestActions.Find<EffectCanvasControl>(window, "EffectCanvas");
         var started = Stopwatch.GetTimestamp();
         var nextRender = started;
-        var from = seconds * 0.1;
+        var from = start + seconds * 0.1;
         var range = seconds * 0.7;
         Pointer("down", from, started);
         Assert.True(timeline.HasActiveDrag);
@@ -196,19 +204,21 @@ public sealed class NativeTimelineScrubBenchmarks(ITestOutputHelper output)
         await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background, TestContext.Current.CancellationToken);
     }
 
-    private static void InstallAnimation(NativeScrubWindowContext context)
+    private static void InstallAnimation(NativeScrubWindowContext context, double start, double seconds)
     {
         var document = context.Window.Session.DocumentSnapshot;
+        var duration = MediaTime.FromTimeSpan(TimeSpan.FromSeconds(seconds));
+        var origin = MediaTime.FromTimeSpan(TimeSpan.FromSeconds(start));
         var line = new SubtitleLine
         {
-            Text = "Scrubbing preview 字幕动画", Start = MediaTime.Zero, End = new(10),
+            Text = "Scrubbing preview 字幕动画", Start = origin, End = origin + duration,
             Style = new() { FontFamily = "Noto Sans", FontSize = 64 }
         };
         var layer = new ProjectLayer
         {
             Id = line.Id, SubtitleId = line.Id, Kind = LayerKind.SUBTITLE, Start = line.Start, End = line.End,
-            Tracks = [new(AnimationProperty.POSITION, [new(MediaTime.Zero, new ScenePoint(80, 80)), new(new(10), new ScenePoint(800, 500))]),
-                new(AnimationProperty.OPACITY, [new(MediaTime.Zero, 0.2), new(new(5), 1), new(new(10), 0.2)])]
+            Tracks = [new(AnimationProperty.POSITION, [new(MediaTime.Zero, new ScenePoint(80, 80)), new(duration, new ScenePoint(800, 500))]),
+                new(AnimationProperty.OPACITY, [new(MediaTime.Zero, 0.2), new(duration / 2, 1), new(duration, 0.2)])]
         };
         context.Window.Session.Editor.Reset(document with { Subtitles = [line], Layers = [layer] });
     }
