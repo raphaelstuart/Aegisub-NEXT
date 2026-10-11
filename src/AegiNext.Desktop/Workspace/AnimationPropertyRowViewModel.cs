@@ -209,6 +209,11 @@ internal sealed class AnimationPropertyRowViewModel : ObservableObject
         {
             loading = false;
         }
+        if (!HasDraft)
+        {
+            draftSource = null;
+            draftTarget = null;
+        }
         Error = null;
         InvalidFieldKey = null;
         session.NotifyEffectPropertyDraftChanged();

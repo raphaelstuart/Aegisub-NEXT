@@ -102,6 +102,44 @@ public sealed class AnimationPropertyEditingCoordinatorTests
         Assert.False(context.Editor.CanUndo);
     }
 
+    /// <summary>仅恢复向量X不能解除仍有Y草稿的冻结来源或绕过文档冲突。</summary>
+    [Fact]
+    public async Task RestoringOneVectorComponentKeepsTheRemainingDraftBoundToItsSource()
+    {
+        var document = CreateDocument();
+        await using var context = new WorkspaceSessionTestContext(document);
+        await context.InitializeAsync();
+        var session = context.Session;
+        session.SelectCue(document.Subtitles[0].Id);
+        var row = session.PropertyEditing.GetRow(document.Layers[0].Id, new(AnimationProperty.MASK_POSITION));
+        row.BeginEdit("effects");
+        row.X.RawText = "unfinished";
+        row.Y.RawText = "34";
+        var frozenTarget = session.SceneEditing.DraftTarget;
+        session.Details.EditText(0, 0, "Edited ");
+        Assert.True(session.Details.TryCommit());
+        var afterDetails = context.Editor.Snapshot;
+        try
+        {
+            row.Restore(row.XFieldKey);
+
+            Assert.Equal("0", row.X.RawText);
+            Assert.Equal("34", row.Y.RawText);
+            Assert.True(row.HasDraft);
+            Assert.Same(frozenTarget, session.SceneEditing.DraftTarget);
+            row.X.RawText = "12";
+            Assert.False(session.TryCommitDrafts(false));
+            Assert.Same(afterDetails, context.Editor.Snapshot);
+            Assert.Equal("12", row.X.RawText);
+            Assert.Equal("34", row.Y.RawText);
+        }
+        finally
+        {
+            row.Restore(row.XFieldKey);
+            row.Restore(row.YFieldKey);
+        }
+    }
+
     /// <summary>节点删除后淘汰对应属性状态，清理过程不写入工程或新增撤销记录。</summary>
     [Fact]
     public async Task RemovingANodeEvictsItsCachedRowsWithoutAnotherProjectWrite()

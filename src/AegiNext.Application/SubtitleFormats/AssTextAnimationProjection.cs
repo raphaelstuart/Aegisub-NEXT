@@ -12,7 +12,7 @@ internal static class AssTextAnimationProjection
         var originalRanges = SubtitleAnimationRangeEditing.Remap(original.AnimationRanges, editMap);
         var expected = SubtitleAnimationRangeEditing.Remap(baseline.Line.AnimationRanges,
             SubtitleTextEditMap.Between(baseline.Line.Text, restored.Text));
-        var expectedLine = baseline.Line with { AnimationRanges = expected };
+        var expectedLine = baseline.Line with { Text = restored.Text, AnimationRanges = expected };
         if (Equivalent(expectedLine, baseline.NumericTracks, parsed.Line, parsed.NumericTracks))
         {
             return (restored with { AnimationRanges = originalRanges }, null);
@@ -41,11 +41,15 @@ internal static class AssTextAnimationProjection
             RepresentableShadows(layer, original, baseline);
         var preserveFill = layer is not null && EquivalentFill(expectedLine, baseline.NumericTracks,
             parsed.Line, parsed.NumericTracks);
+        var unchanged = UnchangedTargets(original with { Text = restored.Text, AnimationRanges = originalRanges },
+            layer?.Tracks ?? [], expectedLine, baseline.NumericTracks, parsed.Line, parsed.NumericTracks);
         var preserved = layer is null ? ImmutableArray<AnimationTrack>.Empty : layer.Tracks
             .Where(track => !IsTextTrack(track) || !Representable(track, representableShadows) ||
-                preserveFill && track.Property == AnimationProperty.FILL).ToImmutableArray();
+                preserveFill && track.Property == AnimationProperty.FILL || unchanged.Native.Contains(track.Target)).ToImmutableArray();
         var preservedTargets = preserved.Select(track => track.Target).ToHashSet();
-        var represented = tracks.Where(track => !preservedTargets.Contains(track.Target));
+        var represented = tracks.Where((track, index) => !preservedTargets.Contains(track.Target) &&
+            !(preserveFill && track.Property == AnimationProperty.FILL) &&
+            !unchanged.Projected.Contains(parsed.NumericTracks[index].Target));
         ranges = RestorePreservedRanges(ranges, originalRanges, preserved, expected);
         return (restored with { AnimationRanges = ranges }, preserved.AddRange(represented));
     }
@@ -54,6 +58,84 @@ internal static class AssTextAnimationProjection
         track.Property is AnimationProperty.FONT_SIZE or AnimationProperty.LETTER_SPACING or AnimationProperty.FILL or
         AnimationProperty.STROKE or AnimationProperty.STROKE_WIDTH or AnimationProperty.FILL_BLUR or AnimationProperty.STROKE_BLUR or
         AnimationProperty.SHADOW_OFFSET or AnimationProperty.SHADOW_BLUR or AnimationProperty.SHADOW_COLOR;
+
+    private static (HashSet<AnimationTrackTarget> Native, HashSet<AnimationTrackTarget> Projected) UnchangedTargets(
+        SubtitleLine nativeLine, ImmutableArray<AnimationTrack> native,
+        SubtitleLine firstLine, ImmutableArray<AnimationTrack> first,
+        SubtitleLine secondLine, ImmutableArray<AnimationTrack> second)
+    {
+        if (secondLine.Text.Length == 0)
+        {
+            return ([], []);
+        }
+        var nativeTracks = native.Where(track => track.Property != AnimationProperty.FILL).ToDictionary(track => track.Target);
+        var firstTracks = first.Where(track => track.Property != AnimationProperty.FILL).ToDictionary(track => track.Target);
+        var secondTracks = second.Where(track => track.Property != AnimationProperty.FILL).ToDictionary(track => track.Target);
+        var unchanged = nativeTracks.Keys.ToHashSet();
+        var observed = new HashSet<AnimationTrackTarget>();
+        var changedChannels = new HashSet<(AnimationProperty Property, SubtitleAnimationState State)>();
+        var redundant = secondTracks.Keys.ToHashSet();
+        var coveredTargets = new Dictionary<AnimationTrackTarget, HashSet<AnimationTrackTarget>>();
+        var comparisons = new Dictionary<(AnimationTrackTarget First, AnimationTrackTarget Second), bool>();
+        var channels = nativeTracks.Keys.Concat(firstTracks.Keys).Concat(secondTracks.Keys)
+            .Select(target => (target.Property, target.State)).Distinct().ToArray();
+        var boundaries = new SortedSet<int> { 0, secondLine.Text.Length };
+        foreach (var range in nativeLine.AnimationRanges.Concat(firstLine.AnimationRanges).Concat(secondLine.AnimationRanges))
+        {
+            boundaries.Add(range.Utf16Start);
+            boundaries.Add(range.Utf16Start + range.Utf16Length);
+        }
+        foreach (var offset in boundaries.Where(offset => offset < secondLine.Text.Length))
+        {
+            foreach (var (property, state) in channels)
+            {
+                var nativeTrack = SelectedTrack(nativeTracks, nativeLine, property, offset, state);
+                if (nativeTrack is not null)
+                {
+                    observed.Add(nativeTrack.Target);
+                }
+                var firstTrack = SelectedTrack(firstTracks, firstLine, property, offset, state);
+                var secondTrack = SelectedTrack(secondTracks, secondLine, property, offset, state);
+                var equivalent = firstTrack is null && secondTrack is null;
+                if (firstTrack is not null && secondTrack is not null)
+                {
+                    var pair = (firstTrack.Target, secondTrack.Target);
+                    if (!comparisons.TryGetValue(pair, out equivalent))
+                    {
+                        equivalent = EquivalentTrack(firstTrack, secondTrack);
+                        comparisons.Add(pair, equivalent);
+                    }
+                }
+                if (!equivalent)
+                {
+                    changedChannels.Add((property, state));
+                    if (nativeTrack is not null)
+                    {
+                        unchanged.Remove(nativeTrack.Target);
+                    }
+                }
+                if (secondTrack is null)
+                {
+                    continue;
+                }
+                if (nativeTrack is null)
+                {
+                    redundant.Remove(secondTrack.Target);
+                    continue;
+                }
+                if (!coveredTargets.TryGetValue(secondTrack.Target, out var targets))
+                {
+                    targets = [];
+                    coveredTargets.Add(secondTrack.Target, targets);
+                }
+                targets.Add(nativeTrack.Target);
+            }
+        }
+        unchanged.RemoveWhere(target => !observed.Contains(target) && changedChannels.Contains((target.Property, target.State)));
+        redundant.RemoveWhere(target => !coveredTargets.TryGetValue(target, out var targets) ||
+            targets.Any(nativeTarget => !unchanged.Contains(nativeTarget)));
+        return (unchanged, redundant);
+    }
 
     private static bool Representable(AnimationTrack track, HashSet<AnimationTrackTarget> representableShadows)
     {
