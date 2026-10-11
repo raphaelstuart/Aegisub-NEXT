@@ -20,12 +20,16 @@ public sealed class VectorDraftInput : UserControl
     public static readonly StyledProperty<string?> YInputNameProperty = AvaloniaProperty.Register<VectorDraftInput, string?>(nameof(YInputName));
     private readonly NumericDraftInput xInput;
     private readonly NumericDraftInput yInput;
+    private readonly Dictionary<AvaloniaProperty, (BindingBase Binding, BindingExpressionBase Expression)> bindings = new();
+    private bool xInputNameFrozen;
+    private bool yInputNameFrozen;
 
     /// <summary>创建共用验证范围的 X/Y 输入。</summary>
     public VectorDraftInput()
     {
         var grid = new Grid { ColumnDefinitions = new("Auto,*,Auto,*"), ColumnSpacing = 6 };
         xInput = CreateInput(nameof(X), nameof(XText));
+        xInput.AttachedToLogicalTree += (_, _) => xInputNameFrozen = true;
         grid.Children.Add(new NumericDragLabel { Text = "X", Input = xInput, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
         Grid.SetColumn(xInput, 1);
         grid.Children.Add(xInput);
@@ -33,6 +37,7 @@ public sealed class VectorDraftInput : UserControl
         Grid.SetColumn(yLabel, 2);
         grid.Children.Add(yLabel);
         yInput = CreateInput(nameof(Y), nameof(YText));
+        yInput.AttachedToLogicalTree += (_, _) => yInputNameFrozen = true;
         yLabel.Input = yInput;
         Grid.SetColumn(yInput, 3);
         grid.Children.Add(yInput);
@@ -46,6 +51,95 @@ public sealed class VectorDraftInput : UserControl
     public decimal Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public decimal Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
     public decimal Increment { get => GetValue(IncrementProperty); set => SetValue(IncrementProperty, value); }
+
+    /// <summary>接收 X 数值的绑定；清空时只释放此入口持有的绑定。</summary>
+    [AssignBinding]
+    public BindingBase? XBinding
+    {
+        get => GetBinding(XProperty);
+        set => SetBinding(XProperty, value);
+    }
+
+    /// <summary>接收 Y 数值的绑定；保留注册属性的默认绑定模式。</summary>
+    [AssignBinding]
+    public BindingBase? YBinding
+    {
+        get => GetBinding(YProperty);
+        set => SetBinding(YProperty, value);
+    }
+
+    /// <summary>接收 X 原始草稿的绑定，保留未解析和无效文本。</summary>
+    [AssignBinding]
+    public BindingBase? XTextBinding
+    {
+        get => GetBinding(XTextProperty);
+        set => SetBinding(XTextProperty, value);
+    }
+
+    /// <summary>接收 Y 原始草稿的绑定，保留未解析和无效文本。</summary>
+    [AssignBinding]
+    public BindingBase? YTextBinding
+    {
+        get => GetBinding(YTextProperty);
+        set => SetBinding(YTextProperty, value);
+    }
+
+    /// <summary>接收两个分量共用的最小值绑定。</summary>
+    [AssignBinding]
+    public BindingBase? MinimumBinding
+    {
+        get => GetBinding(MinimumProperty);
+        set => SetBinding(MinimumProperty, value);
+    }
+
+    /// <summary>接收两个分量共用的最大值绑定。</summary>
+    [AssignBinding]
+    public BindingBase? MaximumBinding
+    {
+        get => GetBinding(MaximumProperty);
+        set => SetBinding(MaximumProperty, value);
+    }
+
+    /// <summary>接收两个分量共用的拖动步长绑定。</summary>
+    [AssignBinding]
+    public BindingBase? IncrementBinding
+    {
+        get => GetBinding(IncrementProperty);
+        set => SetBinding(IncrementProperty, value);
+    }
+
+    /// <summary>接收 X 分量的稳定字段身份绑定。</summary>
+    [AssignBinding]
+    public BindingBase? XFieldKeyBinding
+    {
+        get => GetBinding(XFieldKeyProperty);
+        set => SetBinding(XFieldKeyProperty, value);
+    }
+
+    /// <summary>接收 Y 分量的稳定字段身份绑定。</summary>
+    [AssignBinding]
+    public BindingBase? YFieldKeyBinding
+    {
+        get => GetBinding(YFieldKeyProperty);
+        set => SetBinding(YFieldKeyProperty, value);
+    }
+
+    /// <summary>接收 X 分量输入控件的名称绑定。</summary>
+    [AssignBinding]
+    public BindingBase? XInputNameBinding
+    {
+        get => GetBinding(XInputNameProperty);
+        set => SetBinding(XInputNameProperty, value);
+    }
+
+    /// <summary>接收 Y 分量输入控件的名称绑定。</summary>
+    [AssignBinding]
+    public BindingBase? YInputNameBinding
+    {
+        get => GetBinding(YInputNameProperty);
+        set => SetBinding(YInputNameProperty, value);
+    }
+
     public string? XFieldKey
     {
         get => GetValue(XFieldKeyProperty);
@@ -71,11 +165,11 @@ public sealed class VectorDraftInput : UserControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == XFieldKeyProperty || change.Property == XInputNameProperty)
+        if (!xInputNameFrozen && (change.Property == XFieldKeyProperty || change.Property == XInputNameProperty))
         {
             xInput.Name = XInputName ?? XFieldKey;
         }
-        else if (change.Property == YFieldKeyProperty || change.Property == YInputNameProperty)
+        else if (!yInputNameFrozen && (change.Property == YFieldKeyProperty || change.Property == YInputNameProperty))
         {
             yInput.Name = YInputName ?? YFieldKey;
         }
@@ -99,6 +193,40 @@ public sealed class VectorDraftInput : UserControl
         if (input is not null)
         {
             DataValidationErrors.SetErrors(input, error is null ? null : new[] { error });
+        }
+    }
+
+    private BindingBase? GetBinding(AvaloniaProperty property)
+    {
+        VerifyAccess();
+        return bindings.TryGetValue(property, out var current) ? current.Binding : null;
+    }
+
+    private void SetBinding(AvaloniaProperty property, BindingBase? binding)
+    {
+        VerifyAccess();
+        var hasPrevious = bindings.TryGetValue(property, out var previous);
+        if (hasPrevious && ReferenceEquals(previous.Binding, binding))
+        {
+            return;
+        }
+
+        if (binding is null)
+        {
+            if (hasPrevious)
+            {
+                bindings.Remove(property);
+                previous.Expression.Dispose();
+            }
+
+            return;
+        }
+
+        var expression = Bind(property, binding);
+        bindings[property] = (binding, expression);
+        if (hasPrevious)
+        {
+            previous.Expression.Dispose();
         }
     }
 
