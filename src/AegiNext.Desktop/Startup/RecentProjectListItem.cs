@@ -20,11 +20,13 @@ internal sealed class RecentProjectListItem(RecentProjectEntry entry) : WelcomeL
     public IBrush IconBackground => IsUnavailable ? Brushes.DimGray : icon.Background;
     public IBrush IconForeground => IsUnavailable ? Brushes.Gainsboro : icon.Foreground;
     public bool IsUnavailable => !File.Exists(Path);
+    public bool CanOpenFolder => Directory.Exists(System.IO.Path.GetDirectoryName(Path));
     public string Availability => IsUnavailable ? Localization.Get("Welcome.ProjectUnavailable") : string.Empty;
 
     internal void Refresh()
     {
         OnPropertyChanged(nameof(IsUnavailable));
+        OnPropertyChanged(nameof(CanOpenFolder));
         OnPropertyChanged(nameof(IconBackground));
         OnPropertyChanged(nameof(IconForeground));
         OnPropertyChanged(nameof(Availability));

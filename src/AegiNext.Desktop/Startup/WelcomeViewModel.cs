@@ -13,6 +13,7 @@ internal sealed class WelcomeViewModel : ObservableObject, IDisposable
     private RecentProjectListItem? selectedProject;
     private bool isBusy;
     private string? error;
+    private string? errorKey;
     private string title = Localization.Get("Welcome.Title");
 
     internal WelcomeViewModel(RecentProjectService history, Func<Task> createProject,
@@ -120,14 +121,26 @@ internal sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public string? Error
     {
-        get => error;
+        get => errorKey is { } key ? Localization.Get(key) : error;
         internal set
         {
-            if (SetProperty(ref error, value))
+            if (errorKey is null && error == value)
             {
-                OnPropertyChanged(nameof(HasError));
+                return;
             }
+            errorKey = null;
+            error = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasError));
         }
+    }
+
+    internal void SetLocalizedError(string? key)
+    {
+        error = null;
+        errorKey = key;
+        OnPropertyChanged(nameof(Error));
+        OnPropertyChanged(nameof(HasError));
     }
 
     internal void RefreshAvailability()
@@ -178,6 +191,7 @@ internal sealed class WelcomeViewModel : ObservableObject, IDisposable
         title = Localization.Get("Welcome.Title");
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(EmptyTitle));
+        OnPropertyChanged(nameof(Error));
         foreach (var section in items.OfType<WelcomeProjectSection>())
         {
             section.RefreshLanguage();

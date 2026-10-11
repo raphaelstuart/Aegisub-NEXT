@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 
 namespace AegiNext.Desktop.Views;
@@ -13,7 +14,9 @@ namespace AegiNext.Desktop.Views;
 public sealed partial class WelcomeWindow : Window
 {
     private readonly IWindowChrome chrome;
+    private readonly Func<DirectoryInfo, Task<bool>> openDirectory;
     private WelcomeViewModel? viewModel;
+    private bool isClosed;
 
     /// <summary>构造不拥有应用资源的 XAML 设计宿主。</summary>
     public WelcomeWindow()
@@ -21,13 +24,18 @@ public sealed partial class WelcomeWindow : Window
         AvaloniaXamlLoader.Load(this);
         TitleBar = this.FindControl<WindowTitleBar>("WelcomeTitleBar")!;
         chrome = WindowChrome.Attach(this, TitleBar);
+        openDirectory = directory => Launcher.LaunchDirectoryInfoAsync(directory);
         Activated += OnActivated;
         Closed += OnClosed;
     }
 
-    internal WelcomeWindow(WelcomeViewModel viewModel) : this()
+    internal WelcomeWindow(WelcomeViewModel viewModel, Func<DirectoryInfo, Task<bool>>? openDirectory = null) : this()
     {
         this.viewModel = viewModel;
+        if (openDirectory is not null)
+        {
+            this.openDirectory = openDirectory;
+        }
         DataContext = viewModel;
     }
 
@@ -62,6 +70,32 @@ public sealed partial class WelcomeWindow : Window
         }
     }
 
+    private async void OnOpenProjectFolder(object? sender, RoutedEventArgs e)
+    {
+        if (isClosed || !ViewModel.CanInteract ||
+            sender is not MenuItem { CommandParameter: RecentProjectListItem item })
+        {
+            return;
+        }
+
+        bool opened;
+        try
+        {
+            var directory = Directory.GetParent(item.Path);
+            opened = directory is { Exists: true } && await openDirectory(directory);
+        }
+        catch (Exception)
+        {
+            opened = false;
+        }
+
+        if (!isClosed)
+        {
+            ViewModel.SetLocalizedError(opened ? null : "Welcome.OpenProjectFolderFailed");
+            item.Refresh();
+        }
+    }
+
     private void OnRemoveProject(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { CommandParameter: RecentProjectListItem item } &&
@@ -82,6 +116,7 @@ public sealed partial class WelcomeWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        isClosed = true;
         Activated -= OnActivated;
         chrome.Dispose();
         viewModel?.Dispose();

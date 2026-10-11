@@ -672,6 +672,8 @@
     "Welcome.SearchProjects": "Search projects",
     "Welcome.NewProject": "New project",
     "Welcome.OpenProject": "Open project",
+    "Welcome.OpenProjectFolder": "Open containing folder",
+    "Welcome.OpenProjectFolderFailed": "Could not open the project folder.",
     "Welcome.NoRecentProjects": "No recent projects",
     "Welcome.NoMatchingProjects": "No matching projects",
     "Welcome.ProjectUnavailable": "Project unavailable",

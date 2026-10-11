@@ -74,6 +74,12 @@
               </Grid>
               <Border.ContextMenu>
                 <ContextMenu>
+                  <MenuItem Name="OpenProjectFolderMenuItem" Header="{Loc Key=Welcome.OpenProjectFolder}"
+                            Click="OnOpenProjectFolder" CommandParameter="{Binding}" IsEnabled="{Binding CanOpenFolder}">
+                    <MenuItem.Icon>
+                      <materialIcons:MaterialIcon Kind="FolderOpen" Width="16" Height="16" />
+                    </MenuItem.Icon>
+                  </MenuItem>
                   <MenuItem Header="{Binding PinActionLabel}" Click="OnToggleProjectPin" CommandParameter="{Binding}">
                     <MenuItem.Icon>
                       <materialIcons:MaterialIcon Kind="{Binding PinIconKind}" Width="16" Height="16" />

@@ -672,6 +672,8 @@
     "Welcome.SearchProjects": "搜索项目",
     "Welcome.NewProject": "新建项目",
     "Welcome.OpenProject": "打开项目",
+    "Welcome.OpenProjectFolder": "打开所在文件夹",
+    "Welcome.OpenProjectFolderFailed": "无法打开项目所在文件夹。",
     "Welcome.NoRecentProjects": "暂无最近项目",
     "Welcome.NoMatchingProjects": "没有匹配的项目",
     "Welcome.ProjectUnavailable": "项目不可用",
