@@ -23,6 +23,7 @@ internal sealed class AssGeometryParser
     private bool mixedScaleY;
     private bool mixedRotation;
     private bool hasPlacement;
+    private ScenePoint? placement;
     private AnimationTrack? move;
 
     internal AssGeometryParser(SubtitleLine original, IReadOnlyDictionary<string, AssStyleDefinition> styles,
@@ -41,6 +42,7 @@ internal sealed class AssGeometryParser
     internal IEnumerable<SubtitleFormatDiagnostic> Diagnostics => diagnostics;
     internal ScenePoint CurrentScale => currentScale;
     internal double CurrentRotation => currentRotation;
+    internal ScenePoint? Placement => placement;
 
     internal void Reset(string name)
     {
@@ -128,6 +130,7 @@ internal sealed class AssGeometryParser
         }
         if (name == "pos")
         {
+            placement = position;
             return true;
         }
         var target = new ScenePoint(AssFormatValues.Number(arguments[2]) * canvasScaleX, AssFormatValues.Number(arguments[3]) * canvasScaleY);
@@ -171,6 +174,7 @@ internal sealed class AssGeometryParser
                 new(end, AnimationValue.FromVector(delta))
             ]);
         }
+        placement = position;
         return true;
     }
 

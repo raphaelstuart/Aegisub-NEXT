@@ -15,6 +15,7 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
     private readonly AssResolutionContext borderResolution = resolution ?? new(scaleX, scaleY);
     private readonly AssMaskParser maskParser = new(original.End - original.Start, scaleX, scaleY, canvasWidth, canvasHeight);
     private readonly AssGeometryParser geometryParser = new(original, styles, scaleX, scaleY, !projectSource);
+    private readonly AssRotationOriginParser rotationOriginParser = new(original.Id, scaleX, scaleY);
     private readonly AssOpacityParser opacityParser = new(original.End - original.Start, original.Id);
     private AssNumericTransformParser numericParser = null!;
     private AssTextAnimationImport textAnimation = null!;
@@ -172,9 +173,11 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
             line = line with { Karaoke = line.Karaoke.Select(clip => clip with { Start = clip.Start + contentOffset, End = clip.End + contentOffset }).ToImmutableArray() };
         }
         var transform = new LayerTransform();
+        var placementTracks = projectSource ? [] : geometryParser.Tracks(contentOffset);
         ImmutableArray<AnimationTrack> numericTracks = [];
         if (!projectSource)
         {
+            var sourceGeometry = rotationOriginParser.Origin.HasValue ? textAnimation.RotationOriginGeometry() : null;
             transform = textAnimation.NormalizeTransform(geometryParser.Transform());
             var appearance = new AssTransformAppearance(transform, original.Id);
             line = appearance.Import(line);
@@ -182,6 +185,22 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
             var textAnimations = textAnimation.Convert(line, numericTracks, transform, contentOffset);
             line = textAnimations.Line;
             numericTracks = textAnimations.Tracks;
+            if (rotationOriginParser.Origin is { } origin && sourceGeometry is not null)
+            {
+                if (AssRotationOriginConversion.TryImport(origin, geometryParser.Placement, line, transform, placementTracks,
+                    numericTracks, sourceGeometry, scaleX, scaleY, out var convertedTransform, out var convertedPlacementTracks,
+                    out var reason))
+                {
+                    transform = convertedTransform;
+                    placementTracks = convertedPlacementTracks;
+                }
+                else
+                {
+                    Report("Ass.RotationOrigin", "ASS 旋转原点未保留：" + reason + "；已保留其他定位和动画属性。",
+                        rotationOriginParser.SourceStart, rotationOriginParser.SourceLength);
+                }
+            }
+            diagnostics.AddRange(rotationOriginParser.Diagnostics);
             diagnostics.AddRange(geometryParser.Diagnostics.Where(diagnostic => diagnostic.Code != "Ass.InlineTransform"));
             diagnostics.AddRange(appearance.Diagnostics);
             diagnostics.AddRange(numericParser.Diagnostics.Where(diagnostic => diagnostic.Code != "Ass.InlineTransform" &&
@@ -206,7 +225,7 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
         return new(line, diagnostics.ToImmutable(), map.ToImmutable())
         {
             KaraokeSourceMap = karaokeMap.ToImmutable(), Mask = maskParser.Mask, ContentOffset = contentOffset,
-            Transform = transform, PlacementTracks = projectSource ? [] : geometryParser.Tracks(contentOffset),
+            Transform = transform, PlacementTracks = placementTracks,
             OpacityTracks = opacityTracks, NumericTracks = numericTracks,
             MaskTracks = projectSource ? maskParser.Tracks() : LayerAnimationTiming.Clip(new ProjectLayer
             {
@@ -483,6 +502,16 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
                     lineStyle = lineStyle with { Position = new() { Anchor = new(0, 0), Pivot = Pivot(lineStyle.Alignment), Offset = offset } };
                 }
                 break;
+            case "org":
+                if (projectSource)
+                {
+                    Report("Ass.UnsupportedTag", "项目 ASS 代码不支持 org，请在项目原生轴心属性中调整。", sourceStart, sourceLength);
+                }
+                else
+                {
+                    rotationOriginParser.Apply(value, sourceStart, sourceLength);
+                }
+                break;
             case "kt":
                 FlushKaraoke();
                 var karaokeStart = AssFormatValues.Integer(value);
@@ -526,6 +555,10 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
                 }
                 break;
             case "t":
+                if (!projectSource)
+                {
+                    rotationOriginParser.CollectTransform(value, sourceStart, sourceLength);
+                }
                 if (!projectSource || projectAnimations)
                 {
                     ParseNumericTransform(value, sourceStart, sourceLength);
@@ -602,6 +635,15 @@ internal sealed class AssTextParser(SubtitleLine original, IReadOnlyDictionary<s
     {
         var arguments = AssOverrideTags.Arguments(value);
         var tags = AssOverrideTags.Parse(arguments[^1]).ToArray();
+        if (!projectSource)
+        {
+            tags = tags.Where(tag => tag.Name != "org" &&
+                !(tag.Name == "t" && AssRotationOriginParser.ContainsOnlyOrigins(tag.Value))).ToArray();
+            if (tags.Length == 0)
+            {
+                return;
+            }
+        }
         if (tags.Length > 0 && tags.All(tag => tag.Name is "clip" or "iclip"))
         {
             maskParser.TryTransform(value, original.Id, sourceStart, sourceLength);
